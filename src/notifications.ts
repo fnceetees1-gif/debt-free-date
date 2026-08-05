@@ -1,0 +1,95 @@
+// src/notifications.ts
+// Monthly "payment due" reminder.
+//
+// Note on scheduling: expo-notifications' repeating calendar triggers are not
+// consistent across iOS and Android for day-of-month recurrence, so instead we
+// schedule a rolling window of one-shot notifications and top it back up every
+// time the app opens. Twelve months of runway means a user who never reopens
+// the app still gets reminders for a year.
+import { Platform } from 'react-native';
+import * as Notifications from 'expo-notifications';
+
+const MONTHS_AHEAD = 12;
+const REMINDER_HOUR = 9;
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
+
+/** Returns true if we are allowed to post notifications. Never throws. */
+export async function ensureNotificationPermission(): Promise<boolean> {
+  try {
+    const existing = await Notifications.getPermissionsAsync();
+    if (existing.granted) return true;
+    // Don't re-prompt if the user has already said no — iOS only shows the
+    // system dialog once anyway.
+    if (!existing.canAskAgain) return false;
+    const requested = await Notifications.requestPermissionsAsync();
+    return requested.granted;
+  } catch (err) {
+    console.warn('[notifications] permission check failed:', err);
+    return false;
+  }
+}
+
+export async function cancelReminders(): Promise<void> {
+  try {
+    await Notifications.cancelAllScheduledNotificationsAsync();
+  } catch (err) {
+    console.warn('[notifications] cancel failed:', err);
+  }
+}
+
+/**
+ * Clears and re-schedules the reminder window.
+ * @param dayOfMonth 1-28 (28 max so every month has the date)
+ */
+export async function scheduleMonthlyReminder(dayOfMonth: number): Promise<boolean> {
+  const day = Math.min(Math.max(Math.round(dayOfMonth), 1), 28);
+
+  const granted = await ensureNotificationPermission();
+  if (!granted) return false;
+
+  await cancelReminders();
+
+  if (Platform.OS === 'android') {
+    try {
+      await Notifications.setNotificationChannelAsync('payment-reminders', {
+        name: 'Payment reminders',
+        importance: Notifications.AndroidImportance.DEFAULT,
+      });
+    } catch (err) {
+      console.warn('[notifications] channel setup failed:', err);
+    }
+  }
+
+  const now = new Date();
+  let scheduled = 0;
+
+  for (let i = 0; i < MONTHS_AHEAD; i++) {
+    const when = new Date(now.getFullYear(), now.getMonth() + i, day, REMINDER_HOUR, 0, 0, 0);
+    if (when.getTime() <= now.getTime()) continue; // skip this month if the day already passed
+
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'Debt payments due',
+          body: "Log this month's payments to keep your debt-free date accurate.",
+        },
+        // expo-notifications 0.28 (SDK 51) takes a bare DateTriggerInput here.
+        // The typed `SchedulableTriggerInputTypes` enum only exists in SDK 52+.
+        trigger:
+          Platform.OS === 'android' ? { date: when, channelId: 'payment-reminders' } : { date: when },
+      });
+      scheduled += 1;
+    } catch (err) {
+      console.warn('[notifications] schedule failed:', err);
+    }
+  }
+
+  return scheduled > 0;
+}
