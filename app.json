@@ -11,7 +11,7 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.christian.debtpayoffpro",
       "config": {
         "usesNonExemptEncryption": false
