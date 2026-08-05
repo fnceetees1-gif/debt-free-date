@@ -1,6 +1,14 @@
 // src/screens/StrategyScreen.tsx
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  ScrollView,
+  Keyboard,
+} from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Debt, PayoffStrategy, compareStrategies } from '../calculator';
 import { loadDebts, loadSettings, saveSettings, AppSettings } from '../storage';
@@ -43,7 +51,14 @@ export default function StrategyScreen() {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    // Dragging the list dismisses the keypad — the decimal keyboard has no Done
+    // key, so scrolling is the natural escape. keyboardShouldPersistTaps keeps
+    // the strategy cards tappable while the keypad is up.
+    <ScrollView
+      style={styles.container}
+      keyboardDismissMode="on-drag"
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={styles.sectionTitle}>Extra monthly payment</Text>
       <TextInput
         style={styles.input}
@@ -52,7 +67,10 @@ export default function StrategyScreen() {
         onChangeText={setExtraInput}
         onBlur={() => pick(settings.strategy)}
         placeholder="0"
+        returnKeyType="done"
+        onSubmitEditing={Keyboard.dismiss}
       />
+      <Text style={styles.inputHint}>Scroll down to close the keypad.</Text>
 
       <Text style={styles.sectionTitle}>Choose your strategy</Text>
 
@@ -133,8 +151,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    marginBottom: 16,
+    marginBottom: 6,
   },
+  inputHint: { fontSize: 12, color: '#999', marginBottom: 16 },
   card: {
     backgroundColor: '#FFF',
     borderRadius: 12,

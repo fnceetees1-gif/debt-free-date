@@ -12,6 +12,7 @@ import {
   TextInput,
   Alert,
   Linking,
+  Keyboard,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { loadSettings, saveSettings, AppSettings, FREE_DEBT_LIMIT } from '../storage';
@@ -89,7 +90,12 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ padding: 16 }}
+      keyboardDismissMode="on-drag"
+      keyboardShouldPersistTaps="handled"
+    >
       <View style={styles.statusCard}>
         <Text style={styles.statusLabel}>{isPro ? 'Debt Free Date Pro' : 'Free version'}</Text>
         <Text style={styles.statusBody}>
@@ -128,6 +134,8 @@ export default function SettingsScreen() {
             onChangeText={setDayInput}
             onBlur={commitDay}
             maxLength={2}
+            returnKeyType="done"
+            onSubmitEditing={Keyboard.dismiss}
           />
         </View>
       )}

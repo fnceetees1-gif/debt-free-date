@@ -9,6 +9,10 @@ import {
   Modal,
   TextInput,
   Alert,
+  KeyboardAvoidingView,
+  Keyboard,
+  TouchableWithoutFeedback,
+  Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Debt } from '../calculator';
@@ -199,86 +203,110 @@ export default function DebtsScreen() {
       </TouchableOpacity>
 
       <Modal visible={payingFor !== null} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Log payment</Text>
-            <Text style={styles.payContext}>
-              {payingFor?.name} — balance $
-              {payingFor?.balance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-            </Text>
-            {payingFor && (
-              <Text style={styles.payBreakdown}>
-                About ${(payingFor.balance * (payingFor.apr / 12)).toFixed(2)} of this month's
-                payment goes to interest.
+        {/* The decimal keypad on iOS has no Done key, so tapping the dimmed area
+            above the sheet is the way out. Without this the keyboard covers the
+            Cancel/Log buttons and the modal becomes a dead end. */}
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <KeyboardAvoidingView
+            style={styles.modalOverlay}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>Log payment</Text>
+              <Text style={styles.payContext}>
+                {payingFor?.name} — balance $
+                {payingFor?.balance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
               </Text>
-            )}
-            <Field
-              label="Amount paid ($)"
-              keyboardType="decimal-pad"
-              value={payAmount}
-              onChangeText={setPayAmount}
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setPayingFor(null)}>
-                <Text>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={confirmPayment}>
-                <Text style={styles.saveBtnText}>Log it</Text>
-              </TouchableOpacity>
+              {payingFor && (
+                <Text style={styles.payBreakdown}>
+                  About ${(payingFor.balance * (payingFor.apr / 12)).toFixed(2)} of this month's
+                  payment goes to interest.
+                </Text>
+              )}
+              <Field
+                label="Amount paid ($)"
+                keyboardType="decimal-pad"
+                value={payAmount}
+                onChangeText={setPayAmount}
+                autoFocus
+              />
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setPayingFor(null);
+                  }}
+                >
+                  <Text>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.saveBtn} onPress={confirmPayment}>
+                  <Text style={styles.saveBtnText}>Log it</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </View>
+          </KeyboardAvoidingView>
+        </TouchableWithoutFeedback>
       </Modal>
 
       <Modal visible={modalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{isNew ? 'Add Debt' : 'Edit Debt'}</Text>
-            <Field
-              label="Name"
-              value={editing?.name ?? ''}
-              onChangeText={(v) => setEditing((e) => (e ? { ...e, name: v } : e))}
-            />
-            <Field
-              label="Balance ($)"
-              keyboardType="decimal-pad"
-              value={editing ? String(editing.balance || '') : ''}
-              onChangeText={(v) =>
-                setEditing((e) => (e ? { ...e, balance: parseFloat(v) || 0 } : e))
-              }
-            />
-            <Field
-              label="APR (%)"
-              keyboardType="decimal-pad"
-              value={editing ? String((editing.apr || 0) * 100 || '') : ''}
-              onChangeText={(v) =>
-                setEditing((e) => (e ? { ...e, apr: (parseFloat(v) || 0) / 100 } : e))
-              }
-            />
-            <Field
-              label="Minimum payment ($/mo)"
-              keyboardType="decimal-pad"
-              value={editing ? String(editing.minPayment || '') : ''}
-              onChangeText={(v) =>
-                setEditing((e) => (e ? { ...e, minPayment: parseFloat(v) || 0 } : e))
-              }
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => {
-                  setModalVisible(false);
-                  setEditing(null);
-                }}
-              >
-                <Text>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={save}>
-                <Text style={styles.saveBtnText}>Save</Text>
-              </TouchableOpacity>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <KeyboardAvoidingView
+            style={styles.modalOverlay}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>{isNew ? 'Add Debt' : 'Edit Debt'}</Text>
+              <Text style={styles.payBreakdown}>
+                Tap anywhere above this card to close the keypad.
+              </Text>
+              <Field
+                label="Name"
+                value={editing?.name ?? ''}
+                onChangeText={(v) => setEditing((e) => (e ? { ...e, name: v } : e))}
+              />
+              <Field
+                label="Balance ($)"
+                keyboardType="decimal-pad"
+                value={editing ? String(editing.balance || '') : ''}
+                onChangeText={(v) =>
+                  setEditing((e) => (e ? { ...e, balance: parseFloat(v) || 0 } : e))
+                }
+              />
+              <Field
+                label="APR (%)"
+                keyboardType="decimal-pad"
+                value={editing ? String((editing.apr || 0) * 100 || '') : ''}
+                onChangeText={(v) =>
+                  setEditing((e) => (e ? { ...e, apr: (parseFloat(v) || 0) / 100 } : e))
+                }
+              />
+              <Field
+                label="Minimum payment ($/mo)"
+                keyboardType="decimal-pad"
+                value={editing ? String(editing.minPayment || '') : ''}
+                onChangeText={(v) =>
+                  setEditing((e) => (e ? { ...e, minPayment: parseFloat(v) || 0 } : e))
+                }
+              />
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setModalVisible(false);
+                    setEditing(null);
+                  }}
+                >
+                  <Text>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.saveBtn} onPress={save}>
+                  <Text style={styles.saveBtnText}>Save</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </View>
+          </KeyboardAvoidingView>
+        </TouchableWithoutFeedback>
       </Modal>
     </View>
   );
@@ -289,6 +317,7 @@ function Field(props: {
   value: string;
   onChangeText: (v: string) => void;
   keyboardType?: 'default' | 'decimal-pad';
+  autoFocus?: boolean;
 }) {
   return (
     <View style={{ marginBottom: 12 }}>
@@ -298,6 +327,9 @@ function Field(props: {
         value={props.value}
         onChangeText={props.onChangeText}
         keyboardType={props.keyboardType ?? 'default'}
+        autoFocus={props.autoFocus}
+        returnKeyType="done"
+        onSubmitEditing={Keyboard.dismiss}
       />
     </View>
   );
