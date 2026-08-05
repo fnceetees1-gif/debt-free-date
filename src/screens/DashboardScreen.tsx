@@ -14,6 +14,15 @@ import ShareMilestoneCard from '../components/ShareMilestoneCard';
 import BalanceChart from '../components/BalanceChart';
 import { usePro } from '../ProContext';
 
+/**
+ * Whole-dollar currency. Bare toLocaleString() emits up to three fraction
+ * digits, so a balance of 31459.5708 renders as "$31,459.571" — which reads
+ * as a bug in the largest number on the screen.
+ */
+function money(n: number): string {
+  return `$${Math.round(n).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+}
+
 export default function DashboardScreen() {
   const { isPro, showPaywall } = usePro();
   const [debts, setDebts] = useState<Debt[]>([]);
@@ -58,7 +67,7 @@ export default function DashboardScreen() {
     >
       <View style={styles.heroCard}>
         <Text style={styles.heroLabel}>Total debt remaining</Text>
-        <Text style={styles.heroValue}>${totalDebt(debts).toLocaleString()}</Text>
+        <Text style={styles.heroValue}>{money(totalDebt(debts))}</Text>
       </View>
 
       {plan.neverPaysOff ? (
@@ -72,19 +81,20 @@ export default function DashboardScreen() {
         </View>
       ) : (
         <View style={styles.statRow}>
-          <StatBlock label="Debt-free date" value={plan.payoffDate.toDateString()} />
+          <StatBlock
+            label="Debt-free date"
+            value={plan.payoffDate.toLocaleDateString(undefined, {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            })}
+          />
           <StatBlock label="Months left" value={String(plan.totalMonths)} />
         </View>
       )}
       <View style={styles.statRow}>
-        <StatBlock
-          label="Min. payments/mo"
-          value={`$${totalMinimumPayments(debts).toLocaleString()}`}
-        />
-        <StatBlock
-          label="Extra payment/mo"
-          value={`$${settings.extraMonthlyPayment.toLocaleString()}`}
-        />
+        <StatBlock label="Min. payments/mo" value={money(totalMinimumPayments(debts))} />
+        <StatBlock label="Extra payment/mo" value={money(settings.extraMonthlyPayment)} />
       </View>
 
       {interestDelta > 1 && !plan.neverPaysOff && (
