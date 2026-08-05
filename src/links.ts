@@ -10,6 +10,6 @@
 // you supply your own. Linking it satisfies the requirement with nothing to
 // write or host. Only replace it if you have a custom EULA.
 
-export const PRIVACY_POLICY_URL = 'https://CHANGEME.github.io/debt-payoff-app/privacy';
-export const SUPPORT_URL = 'https://CHANGEME.github.io/debt-payoff-app/support';
+export const PRIVACY_POLICY_URL = 'https://fnceetees1-gif.github.io/debt-free-date/privacy';
+export const SUPPORT_URL = 'https://fnceetees1-gif.github.io/debt-free-date/support';
 export const TERMS_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';

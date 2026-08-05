@@ -25,9 +25,11 @@
   "submit": {
     "production": {
       "ios": {
-        "appleId": "REPLACE_WITH_APPLE_ID_EMAIL",
         "ascAppId": "6798039442",
-        "appleTeamId": "3HYY6SBKZF"
+        "appleTeamId": "3HYY6SBKZF",
+        "ascApiKeyPath": "../Downloads/AuthKey_6BZDDCL4V7.p8",
+        "ascApiKeyId": "6BZDDCL4V7",
+        "ascApiKeyIssuerId": "1ba07191-87dc-4602-a02d-b188438a1331"
       }
     }
   }
