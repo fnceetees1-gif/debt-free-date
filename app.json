@@ -15,10 +15,6 @@
       "bundleIdentifier": "com.christian.debtpayoffpro",
       "config": {
         "usesNonExemptEncryption": false
-      },
-      "infoPlist": {
-        "NSUserTrackingUsageDescription": "This app does not track you. No analytics, no advertising identifiers.",
-        "UIBackgroundModes": []
       }
     },
     "android": {
