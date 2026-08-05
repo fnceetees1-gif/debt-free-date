@@ -19,6 +19,9 @@ export default function StrategyScreen() {
   const [debts, setDebts] = useState<Debt[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [extraInput, setExtraInput] = useState('0');
+  // Shows a Done button only while the keypad is up — the decimal pad has no
+  // built-in one, and a permanent hint is clutter the rest of the time.
+  const [editingExtra, setEditingExtra] = useState(false);
 
   const refresh = useCallback(async () => {
     const [d, s] = await Promise.all([loadDebts(), loadSettings()]);
@@ -69,8 +72,20 @@ export default function StrategyScreen() {
         placeholder="0"
         returnKeyType="done"
         onSubmitEditing={Keyboard.dismiss}
+        onFocus={() => setEditingExtra(true)}
       />
-      <Text style={styles.inputHint}>Scroll down to close the keypad.</Text>
+      {editingExtra && (
+        <TouchableOpacity
+          style={styles.doneBtn}
+          onPress={() => {
+            Keyboard.dismiss();
+            setEditingExtra(false);
+            pick(settings.strategy);
+          }}
+        >
+          <Text style={styles.doneBtnText}>Done</Text>
+        </TouchableOpacity>
+      )}
 
       <Text style={styles.sectionTitle}>Choose your strategy</Text>
 
@@ -153,7 +168,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 6,
   },
-  inputHint: { fontSize: 12, color: '#999', marginBottom: 16 },
+  doneBtn: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#1B1F3B',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 16,
+    marginBottom: 16,
+  },
+  doneBtnText: { color: '#FFF', fontWeight: '600', fontSize: 13 },
   card: {
     backgroundColor: '#FFF',
     borderRadius: 12,

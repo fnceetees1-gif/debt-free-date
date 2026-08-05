@@ -20,11 +20,35 @@ import { loadDebts, saveDebts, generateId, FREE_DEBT_LIMIT } from '../storage';
 import { applyPayment, recordPayment } from '../history';
 import { usePro } from '../ProContext';
 
+/**
+ * The debt form holds raw text, not numbers.
+ *
+ * Deriving the input value from parsed state (`String(apr * 100)`) makes it
+ * impossible to type a decimal: the moment you type "5.", it parses to 5 and
+ * re-renders as "5", eating the point. Keeping the text as typed and parsing
+ * only on save is the only thing that behaves correctly.
+ */
+interface DebtDraft {
+  id: string;
+  name: string;
+  balance: string;
+  apr: string;
+  minPayment: string;
+}
+
+const EMPTY_DRAFT: DebtDraft = { id: '', name: '', balance: '', apr: '', minPayment: '' };
+
+/** Parses a typed field. Tolerates "", ".", "5." and stray commas. */
+function parseAmount(text: string): number {
+  const n = parseFloat(text.replace(/,/g, ''));
+  return Number.isFinite(n) ? n : 0;
+}
+
 export default function DebtsScreen() {
   const { isPro, showPaywall } = usePro();
   const [debts, setDebts] = useState<Debt[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<Debt | null>(null);
+  const [draft, setDraft] = useState<DebtDraft>(EMPTY_DRAFT);
   const [isNew, setIsNew] = useState(false);
   const [payingFor, setPayingFor] = useState<Debt | null>(null);
   const [payAmount, setPayAmount] = useState('');
@@ -48,13 +72,20 @@ export default function DebtsScreen() {
       );
       return;
     }
-    setEditing({ id: generateId(), name: '', balance: 0, apr: 0, minPayment: 0 });
+    setDraft({ ...EMPTY_DRAFT, id: generateId() });
     setIsNew(true);
     setModalVisible(true);
   };
 
   const openEdit = (d: Debt) => {
-    setEditing({ ...d });
+    setDraft({
+      id: d.id,
+      name: d.name,
+      balance: d.balance ? String(d.balance) : '',
+      // Round to kill float artifacts like 5.500000000000001 from apr*100.
+      apr: d.apr ? String(Math.round(d.apr * 100 * 10000) / 10000) : '',
+      minPayment: d.minPayment ? String(d.minPayment) : '',
+    });
     setIsNew(false);
     setModalVisible(true);
   };
@@ -113,19 +144,28 @@ export default function DebtsScreen() {
     setDebts(next);
     await saveDebts(next);
     setModalVisible(false);
-    setEditing(null);
+    setDraft(EMPTY_DRAFT);
   };
 
   const save = async () => {
-    if (!editing || !editing.name.trim() || editing.balance <= 0) {
+    // Text becomes numbers here and nowhere else.
+    const debt: Debt = {
+      id: draft.id,
+      name: draft.name.trim(),
+      balance: parseAmount(draft.balance),
+      apr: parseAmount(draft.apr) / 100,
+      minPayment: parseAmount(draft.minPayment),
+    };
+
+    if (!debt.name || debt.balance <= 0) {
       Alert.alert('Missing info', 'Enter a name and a balance greater than 0.');
       return;
     }
-    if (editing.apr < 0 || editing.apr > 1.5) {
+    if (debt.apr < 0 || debt.apr > 1.5) {
       Alert.alert('Check the APR', 'Enter an APR between 0% and 150%.');
       return;
     }
-    if (editing.minPayment < 0) {
+    if (debt.minPayment < 0) {
       Alert.alert('Check the minimum payment', 'Minimum payment cannot be negative.');
       return;
     }
@@ -134,14 +174,14 @@ export default function DebtsScreen() {
     // forever and the payoff simulation never terminates on its own. Let the
     // user save it anyway — it's their real situation — but don't let the
     // resulting "never" timeline look like a bug in the app.
-    const monthlyInterest = editing.balance * (editing.apr / 12);
-    if (editing.minPayment <= monthlyInterest) {
+    const monthlyInterest = debt.balance * (debt.apr / 12);
+    if (debt.minPayment <= monthlyInterest) {
       const proceed = await new Promise<boolean>((resolve) => {
         Alert.alert(
           'Payment below interest',
-          `At ${(editing.apr * 100).toFixed(2)}% APR this debt accrues about $${monthlyInterest.toFixed(
+          `At ${(debt.apr * 100).toFixed(2)}% APR this debt accrues about $${monthlyInterest.toFixed(
             2
-          )} in interest per month, which is more than the $${editing.minPayment.toFixed(
+          )} in interest per month, which is more than the $${debt.minPayment.toFixed(
             2
           )} minimum you entered. The balance will grow instead of shrink unless you add an extra monthly payment.`,
           [
@@ -153,7 +193,7 @@ export default function DebtsScreen() {
       if (!proceed) return;
     }
 
-    await commit(editing);
+    await commit(debt);
   };
 
 
@@ -165,20 +205,30 @@ export default function DebtsScreen() {
         contentContainerStyle={{ padding: 16 }}
         renderItem={({ item }) => (
           <View style={styles.card}>
-            <TouchableOpacity style={styles.row} onPress={() => openEdit(item)}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.rowName}>{item.name}</Text>
-                <Text style={styles.rowSub}>
-                  {(item.apr * 100).toFixed(2)}% APR - ${item.minPayment}/mo min
+            {/* Delete must be a SIBLING of the edit target, not nested inside it.
+                A TouchableOpacity inside another TouchableOpacity loses the tap
+                to the outer one on iOS, so the old delete just opened Edit. */}
+            <View style={styles.row}>
+              <TouchableOpacity style={styles.rowMain} onPress={() => openEdit(item)}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowName}>{item.name}</Text>
+                  <Text style={styles.rowSub}>
+                    {(item.apr * 100).toFixed(2)}% APR · ${item.minPayment}/mo min
+                  </Text>
+                </View>
+                <Text style={styles.rowBalance}>
+                  ${item.balance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                 </Text>
-              </View>
-              <Text style={styles.rowBalance}>
-                ${item.balance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-              </Text>
-              <TouchableOpacity onPress={() => remove(item.id)} style={styles.deleteBtn}>
-                <Text style={styles.deleteBtnText}>X</Text>
               </TouchableOpacity>
-            </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => remove(item.id)}
+                style={styles.deleteBtn}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                accessibilityLabel={`Delete ${item.name}`}
+              >
+                <Text style={styles.deleteBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
             <TouchableOpacity style={styles.logBtn} onPress={() => openPayment(item)}>
               <Text style={styles.logBtnText}>Log payment</Text>
             </TouchableOpacity>
@@ -262,32 +312,26 @@ export default function DebtsScreen() {
               </Text>
               <Field
                 label="Name"
-                value={editing?.name ?? ''}
-                onChangeText={(v) => setEditing((e) => (e ? { ...e, name: v } : e))}
+                value={draft.name}
+                onChangeText={(v) => setDraft((d) => ({ ...d, name: v }))}
               />
               <Field
                 label="Balance ($)"
                 keyboardType="decimal-pad"
-                value={editing ? String(editing.balance || '') : ''}
-                onChangeText={(v) =>
-                  setEditing((e) => (e ? { ...e, balance: parseFloat(v) || 0 } : e))
-                }
+                value={draft.balance}
+                onChangeText={(v) => setDraft((d) => ({ ...d, balance: v }))}
               />
               <Field
                 label="APR (%)"
                 keyboardType="decimal-pad"
-                value={editing ? String((editing.apr || 0) * 100 || '') : ''}
-                onChangeText={(v) =>
-                  setEditing((e) => (e ? { ...e, apr: (parseFloat(v) || 0) / 100 } : e))
-                }
+                value={draft.apr}
+                onChangeText={(v) => setDraft((d) => ({ ...d, apr: v }))}
               />
               <Field
                 label="Minimum payment ($/mo)"
                 keyboardType="decimal-pad"
-                value={editing ? String(editing.minPayment || '') : ''}
-                onChangeText={(v) =>
-                  setEditing((e) => (e ? { ...e, minPayment: parseFloat(v) || 0 } : e))
-                }
+                value={draft.minPayment}
+                onChangeText={(v) => setDraft((d) => ({ ...d, minPayment: v }))}
               />
               <View style={styles.modalActions}>
                 <TouchableOpacity
@@ -295,7 +339,7 @@ export default function DebtsScreen() {
                   onPress={() => {
                     Keyboard.dismiss();
                     setModalVisible(false);
-                    setEditing(null);
+                    setDraft(EMPTY_DRAFT);
                   }}
                 >
                   <Text>Cancel</Text>
@@ -341,8 +385,11 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
+    paddingLeft: 14,
+    paddingRight: 6,
+    paddingVertical: 4,
   },
+  rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
   logBtn: {
     borderTopWidth: 1,
     borderTopColor: '#F0F1F5',
@@ -355,8 +402,8 @@ const styles = StyleSheet.create({
   rowName: { fontSize: 15, fontWeight: '600' },
   rowSub: { fontSize: 12, color: '#888', marginTop: 2 },
   rowBalance: { fontSize: 15, fontWeight: '700', marginRight: 10 },
-  deleteBtn: { padding: 4 },
-  deleteBtnText: { color: '#C33', fontSize: 16 },
+  deleteBtn: { paddingHorizontal: 12, paddingVertical: 12 },
+  deleteBtnText: { color: '#C33', fontSize: 17, fontWeight: '600' },
   empty: { textAlign: 'center', color: '#999', marginTop: 40 },
   fab: {
     position: 'absolute',
