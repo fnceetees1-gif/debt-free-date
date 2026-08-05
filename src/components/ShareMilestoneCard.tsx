@@ -6,7 +6,7 @@
 // post progress, which is free distribution for the app.
 import React, { useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import ViewShot from 'react-native-view-shot';
+import ViewShot, { type ViewShotRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 
 interface Props {
@@ -15,7 +15,9 @@ interface Props {
 }
 
 export default function ShareMilestoneCard({ payoffDate, totalDebt }: Props) {
-  const viewShotRef = useRef<ViewShot>(null);
+  // v5 turned ViewShot into a forwardRef component, so the ref is ViewShotRef
+  // rather than a class instance.
+  const viewShotRef = useRef<ViewShotRef>(null);
 
   const daysUntilFree = Math.max(
     0,

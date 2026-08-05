@@ -7,11 +7,6 @@
     "icon": "./assets/icon.png",
     "scheme": "debtfreedate",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#1B1F3B"
-    },
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -38,6 +33,14 @@
       ]
     },
     "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#1B1F3B"
+        }
+      ],
       [
         "expo-notifications",
         {

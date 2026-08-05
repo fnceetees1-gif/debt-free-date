@@ -14,7 +14,8 @@ const REMINDER_HOUR = 9;
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: false,
     shouldSetBadge: false,
   }),
@@ -80,10 +81,11 @@ export async function scheduleMonthlyReminder(dayOfMonth: number): Promise<boole
           title: 'Debt payments due',
           body: "Log this month's payments to keep your debt-free date accurate.",
         },
-        // expo-notifications 0.28 (SDK 51) takes a bare DateTriggerInput here.
-        // The typed `SchedulableTriggerInputTypes` enum only exists in SDK 52+.
-        trigger:
-          Platform.OS === 'android' ? { date: when, channelId: 'payment-reminders' } : { date: when },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: when,
+          ...(Platform.OS === 'android' ? { channelId: 'payment-reminders' } : {}),
+        },
       });
       scheduled += 1;
     } catch (err) {
