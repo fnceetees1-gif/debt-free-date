@@ -61,4 +61,4 @@ new date at the top.
 
 ## Contact
 
-Questions about this policy: **fnceetees1@gmail.com**
+Questions about this policy: **thomiandesigns@aol.com**
