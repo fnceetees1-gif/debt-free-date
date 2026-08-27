@@ -4,15 +4,13 @@
 submission ID 82e58619-37e0-40d8-8c7c-8a25d66b9251, status Waiting for Review.
 It can still be pulled via Cancel Submission in App Store Connect until review
 begins. Android versionCode 6 holds the same fixes and is not yet uploaded.
-submitted — the plan is to keep testing against the fixed build and submit when
-the list stops growing.
 
 Android has not shipped to production, so these fixes cost nothing there; its
-first production release will simply contain them. Only Apple needs an update.
+first production release will simply contain them. Only Apple needed an update.
 
 ---
 
-## Fixed in 1.0.1 — awaiting submission
+## Fixed in 1.0.1
 
 ### 1. Undoing an older payment corrupted the balance ✅
 
