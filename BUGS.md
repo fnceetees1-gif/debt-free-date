@@ -187,6 +187,24 @@ day a user has with this app.
 
 ---
 
+### 15. Extra payment field started with a literal "0" *(Floyd, Aug 27)* ✅
+
+Tapping the extra monthly payment field and typing 500 produced **"0500"** —
+you had to clear the box first every single time.
+
+`setExtraInput(String(s.extraMonthlyPayment || 0))` rendered a real `"0"` into
+the input when the value was zero, while a greyed `placeholder="0"` sat unused
+behind it.
+
+**Fixed:** empty when the value is zero, so the placeholder does its job.
+
+**Also, everywhere:** `selectTextOnFocus` on the extra payment, the reminder day
+and the payment amount. Tapping a field with a value now selects it, so typing
+replaces instead of appending. The payment field is prefilled with the minimum,
+which is usually right but often needs changing — that one needed it most.
+
+---
+
 ## New findings — add them here
 
 *(nothing yet)*

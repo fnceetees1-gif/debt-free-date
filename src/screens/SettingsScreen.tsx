@@ -183,6 +183,7 @@ export default function SettingsScreen() {
           <TextInput
             style={styles.dayInput}
             keyboardType="number-pad"
+            selectTextOnFocus
             value={dayInput}
             onChangeText={setDayInput}
             onBlur={commitDay}

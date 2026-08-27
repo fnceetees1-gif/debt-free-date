@@ -291,6 +291,10 @@ export default function DebtsScreen() {
                 value={payAmount}
                 onChangeText={setPayAmount}
                 autoFocus
+                // Prefilled with the minimum, which is usually right but often
+                // needs replacing. Select it so typing overwrites rather than
+                // appending to it.
+                selectTextOnFocus
               />
               <View style={styles.modalActions}>
                 <TouchableOpacity
@@ -389,6 +393,7 @@ function Field(props: {
   autoFocus?: boolean;
   placeholder?: string;
   hint?: string;
+  selectTextOnFocus?: boolean;
 }) {
   return (
     <View style={{ marginBottom: 12 }}>
@@ -401,6 +406,7 @@ function Field(props: {
         autoFocus={props.autoFocus}
         placeholder={props.placeholder}
         placeholderTextColor="#AAB"
+        selectTextOnFocus={props.selectTextOnFocus}
         returnKeyType="done"
         onSubmitEditing={Keyboard.dismiss}
       />

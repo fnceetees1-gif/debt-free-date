@@ -28,7 +28,10 @@ export default function StrategyScreen() {
     const [d, s] = await Promise.all([loadDebts(), loadSettings()]);
     setDebts(d);
     setSettings(s);
-    setExtraInput(String(s.extraMonthlyPayment || 0));
+    // Empty, not "0". A literal zero in the box means typing 500 produces
+    // "0500" and you have to clear it first. The greyed placeholder already
+    // says 0, which is what an empty field means here anyway.
+    setExtraInput(s.extraMonthlyPayment ? String(s.extraMonthlyPayment) : '');
   }, []);
 
   useFocusEffect(
@@ -73,6 +76,10 @@ export default function StrategyScreen() {
         onChangeText={setExtraInput}
         onBlur={() => pick(settings.strategy)}
         placeholder="0"
+        placeholderTextColor="#AAB"
+        // Tapping an existing amount selects it, so typing replaces rather than
+        // appends. Without this, editing 500 to 600 means backspacing first.
+        selectTextOnFocus
         returnKeyType="done"
         onSubmitEditing={Keyboard.dismiss}
         onFocus={() => setEditingExtra(true)}
