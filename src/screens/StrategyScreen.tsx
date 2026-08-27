@@ -13,6 +13,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Debt, PayoffStrategy, compareStrategies } from '../calculator';
 import { loadDebts, loadSettings, saveSettings, AppSettings } from '../storage';
 import { usePro } from '../ProContext';
+import { parseAmount } from '../format';
 
 export default function StrategyScreen() {
   const { isPro, showPaywall } = usePro();
@@ -38,7 +39,9 @@ export default function StrategyScreen() {
 
   if (!settings) return null;
 
-  const extra = parseFloat(extraInput) || 0;
+  // Same parser as every other amount field — parseFloat here meant "1,200"
+  // silently became an extra payment of $1.
+  const extra = parseAmount(extraInput);
   const { snowball, avalanche } = debts.length
     ? compareStrategies(debts, extra)
     : { snowball: null, avalanche: null };

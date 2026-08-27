@@ -23,6 +23,7 @@ import {
   FREE_DEBT_LIMIT,
 } from '../storage';
 import { clearPayments } from '../history';
+import { parseAmount } from '../format';
 import { restorePro } from '../purchases';
 import { scheduleMonthlyReminder, cancelReminders } from '../notifications';
 import { usePro } from '../ProContext';
@@ -81,7 +82,7 @@ export default function SettingsScreen() {
   };
 
   const commitDay = async () => {
-    const parsed = Math.min(Math.max(Math.round(parseFloat(dayInput) || 1), 1), 28);
+    const parsed = Math.min(Math.max(Math.round(parseAmount(dayInput)) || 1, 1), 28);
     setDayInput(String(parsed));
     const next = { ...settings, reminderDay: parsed };
     await persist(next);

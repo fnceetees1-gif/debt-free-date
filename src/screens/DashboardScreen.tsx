@@ -58,6 +58,21 @@ export default function DashboardScreen() {
     );
   }
 
+  // Debts exist but every one is cleared. Without this the screen renders a
+  // $0 hero, a payoff date of today and an empty chart — a flat, faintly broken
+  // read on what should be the best day the user has with this app.
+  if (totalDebt(debts) <= 0.01) {
+    return (
+      <View style={styles.emptyState}>
+        <Text style={styles.emptyTitle}>🎉 You're debt free</Text>
+        <Text style={styles.emptySubtitle}>
+          Every debt you're tracking is paid off. Your payment history is on the Progress tab —
+          worth a look at what it took.
+        </Text>
+      </View>
+    );
+  }
+
   const plan = simulatePayoff(debts, settings.strategy, settings.extraMonthlyPayment);
   const { snowball, avalanche } = compareStrategies(debts, settings.extraMonthlyPayment);
   const interestDelta = snowball.totalInterestPaid - avalanche.totalInterestPaid;

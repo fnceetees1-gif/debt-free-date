@@ -137,6 +137,56 @@ TestFlight build.
 
 ---
 
+### 11. Corrupt storage bricked the app on a permanent spinner ✅ **worst one found**
+
+`loadDebts()` and `loadSettings()` called `JSON.parse` with no guard, and App's
+startup effect had no `catch`. One malformed record — an interrupted write, a
+crash mid-save, a full disk — and the promise rejected, `setLoading(false)`
+never ran, and the app sat on its spinner **forever**. No recovery except
+deleting and reinstalling, which also destroys the user's data.
+
+`loadPayments()` already had a try/catch. The other two didn't. Nothing marked
+the difference.
+
+**Fixed:** both loaders now return defaults instead of throwing, and validate
+the parsed shape (an array for debts, an object for settings). App's startup is
+wrapped in try/finally so the UI is always released — nothing that happens at
+launch is worth trapping someone on a spinner.
+
+---
+
+### 12. The paywall could become permanently unopenable ✅
+
+An iOS `pageSheet` can be swiped away without `onRequestClose` firing, leaving
+`paywallVisible` stuck at `true`. The next `showPaywall()` then sets true over
+true, React sees no change, and the sheet never appears again until the app is
+restarted — so a user who swipes the paywall away once may be unable to buy Pro
+at all.
+
+**Fixed:** `onDismiss` also resets the flag, so the state is honest however the
+sheet went away.
+
+---
+
+### 13. The extra-payment field had the same parser bug as #2 ✅
+
+`StrategyScreen` still used `parseFloat`, so "1,200" became an extra payment of
+**$1** — quietly wrecking every projection on the screen. Now uses the shared
+`parseAmount`. The reminder-day field was switched over too, for consistency;
+there is now exactly one parser in the app.
+
+---
+
+### 14. Paying off everything left the Dashboard looking broken ✅
+
+With debts present but all cleared, the screen rendered a $0 hero, a payoff date
+of today and an empty chart. Flat and faintly broken on what should be the best
+day a user has with this app.
+
+**Fixed:** an all-cleared state that says so and points at the Progress tab.
+
+---
+
 ## New findings — add them here
 
 *(nothing yet)*

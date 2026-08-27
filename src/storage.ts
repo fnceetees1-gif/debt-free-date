@@ -35,18 +35,42 @@ export const defaultSettings: AppSettings = {
   isPro: false,
 };
 
+/**
+ * Never throws.
+ *
+ * A JSON.parse on corrupt storage used to reject straight through App's startup
+ * effect, which had no catch — so `setLoading(false)` never ran and the app sat
+ * on its spinner forever, with no way out but deleting it. Losing data to a
+ * half-written record is bad; being unable to open the app again is worse.
+ */
 export async function loadDebts(): Promise<Debt[]> {
-  const raw = await AsyncStorage.getItem(DEBTS_KEY);
-  return raw ? (JSON.parse(raw) as Debt[]) : [];
+  try {
+    const raw = await AsyncStorage.getItem(DEBTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as Debt[]) : [];
+  } catch (err) {
+    console.warn('[storage] could not read debts:', err);
+    return [];
+  }
 }
 
 export async function saveDebts(debts: Debt[]): Promise<void> {
   await AsyncStorage.setItem(DEBTS_KEY, JSON.stringify(debts));
 }
 
+/** Never throws — see loadDebts. Falls back to defaults. */
 export async function loadSettings(): Promise<AppSettings> {
-  const raw = await AsyncStorage.getItem(SETTINGS_KEY);
-  return raw ? { ...defaultSettings, ...JSON.parse(raw) } : defaultSettings;
+  try {
+    const raw = await AsyncStorage.getItem(SETTINGS_KEY);
+    if (!raw) return defaultSettings;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return defaultSettings;
+    return { ...defaultSettings, ...parsed };
+  } catch (err) {
+    console.warn('[storage] could not read settings:', err);
+    return defaultSettings;
+  }
 }
 
 export async function saveSettings(settings: AppSettings): Promise<void> {
