@@ -19,6 +19,16 @@ android/
 *.mobileprovision
 *.keystore
 
+# Personal / third-party data — this repo is PUBLIC (github.com/fnceetees1-gif/debt-free-date)
+# These hold other people's email addresses, business identifiers, and a home
+# address. None of it belongs in a public repository.
+OUTREACH_DRAFTS.md
+OUTREACH_NATIONAL.md
+OUTREACH_TRACKER.md
+EMAIL_TEST.md
+ANDROID_RELEASE.md
+BUSINESS_IDS.md
+
 # OS
 .DS_Store
 Thumbs.db

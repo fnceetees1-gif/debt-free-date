@@ -19,7 +19,6 @@
     },
     "android": {
       "package": "com.christian.debtpayoffpro",
-      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1B1F3B"
@@ -43,11 +42,12 @@
           "icon": "./assets/notification-icon.png",
           "color": "#1B1F3B"
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "extra": {
       "revenueCatApiKeyIos": "appl_OgMiCfArEihCODJdVqvwmtyzEow",
-      "revenueCatApiKeyAndroid": "REPLACE_WITH_REVENUECAT_ANDROID_PUBLIC_KEY",
+      "revenueCatApiKeyAndroid": "goog_BhhsEgcXGWPyhlRAZEQsciqpoSe",
       "eas": {
         "projectId": "aa65ce5c-586b-44ea-bae9-1b445afd2715"
       }
