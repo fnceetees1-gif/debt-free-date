@@ -61,9 +61,16 @@ export default function SettingsScreen() {
     if (value) {
       const ok = await scheduleMonthlyReminder(settings.reminderDay);
       if (!ok) {
+        // iOS shows the permission prompt once, ever. Once it has been declined
+        // the app cannot ask again — it can only hand the user to Settings, so
+        // do that for them rather than describing where to go.
         Alert.alert(
           'Notifications are off',
-          'Enable notifications for Debt Free Date in your device Settings to receive payment reminders.'
+          'Debt Free Date needs permission to send reminders. Turn on Allow Notifications and try again.',
+          [
+            { text: 'Not now', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ]
         );
         return;
       }
@@ -144,15 +151,27 @@ export default function SettingsScreen() {
       </View>
 
       <Text style={styles.sectionTitle}>Reminders</Text>
-      <View style={styles.row}>
+      {/* For a free user the switch is disabled and the whole row opens the
+          paywall. Leaving it live meant the toggle slid across, snapped back and
+          threw up a paywall — which reads as broken rather than as locked. */}
+      <TouchableOpacity
+        style={styles.row}
+        activeOpacity={isPro ? 1 : 0.6}
+        disabled={isPro}
+        onPress={() => showPaywall('Payment reminders are part of Debt Free Date Pro.')}
+      >
         <View style={{ flex: 1 }}>
           <Text style={styles.rowLabel}>Monthly payment reminder</Text>
           <Text style={styles.rowSub}>
-            {isPro ? 'A nudge each month to log your payments.' : 'Included with Pro.'}
+            {isPro ? 'A nudge each month to log your payments.' : 'Included with Pro →'}
           </Text>
         </View>
-        <Switch value={settings.remindersEnabled} onValueChange={toggleReminders} />
-      </View>
+        <Switch
+          value={settings.remindersEnabled}
+          onValueChange={toggleReminders}
+          disabled={!isPro}
+        />
+      </TouchableOpacity>
 
       {settings.remindersEnabled && (
         <View style={styles.row}>

@@ -112,6 +112,31 @@ Declared in `AppSettings`, referenced nowhere. Removed.
 
 ---
 
+### 10. Reminder toggle appeared broken *(Floyd, Aug 27, on the 1.0.1 TestFlight build)* ✅
+
+Tapping the monthly reminder switch did nothing visible except an alert saying
+to enable notifications in device Settings.
+
+**Working as written, but badly.** iOS shows the notification permission prompt
+**once, ever**. Once declined the app cannot ask again — so on any install where
+permission was previously refused, the toggle can only fail and point at a
+Settings page.
+
+Useful side-effect of the diagnosis: the Pro check runs *before* the notification
+check, so reaching this alert proves the Pro entitlement carried over to the
+TestFlight build.
+
+**Fixed, two parts:**
+
+- The alert now has an **Open Settings** button (`Linking.openSettings()`) rather
+  than describing where to go and leaving the user to find it.
+- For a **free** user the switch is now **disabled** and the whole row opens the
+  paywall. Previously the toggle slid across, snapped back and threw a paywall —
+  indistinguishable from a broken control. The caption already said "Included
+  with Pro"; now the control agrees with it.
+
+---
+
 ## New findings — add them here
 
 *(nothing yet)*
