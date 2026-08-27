@@ -1,6 +1,9 @@
 # Debt Free Date — bug log
 
-**Version 1.0.1 is built and all nine findings below are fixed.** Not yet
+**Version 1.0.1 build 13 was SUBMITTED to Apple on Aug 27, 2026 at 2:11 PM** —
+submission ID 82e58619-37e0-40d8-8c7c-8a25d66b9251, status Waiting for Review.
+It can still be pulled via Cancel Submission in App Store Connect until review
+begins. Android versionCode 6 holds the same fixes and is not yet uploaded.
 submitted — the plan is to keep testing against the fixed build and submit when
 the list stops growing.
 
