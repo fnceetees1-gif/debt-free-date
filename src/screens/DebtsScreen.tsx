@@ -19,6 +19,7 @@ import { Debt } from '../calculator';
 import { loadDebts, saveDebts, generateId, FREE_DEBT_LIMIT } from '../storage';
 import { applyPayment, recordPayment } from '../history';
 import { usePro } from '../ProContext';
+import { parseAmount, formatMoney } from '../format';
 
 /**
  * The debt form holds raw text, not numbers.
@@ -37,12 +38,6 @@ interface DebtDraft {
 }
 
 const EMPTY_DRAFT: DebtDraft = { id: '', name: '', balance: '', apr: '', minPayment: '' };
-
-/** Parses a typed field. Tolerates "", ".", "5." and stray commas. */
-function parseAmount(text: string): number {
-  const n = parseFloat(text.replace(/,/g, ''));
-  return Number.isFinite(n) ? n : 0;
-}
 
 export default function DebtsScreen() {
   const { isPro, showPaywall } = usePro();
@@ -91,18 +86,25 @@ export default function DebtsScreen() {
   };
 
   const remove = (id: string) => {
-    Alert.alert('Delete debt?', 'This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          const next = debts.filter((d) => d.id !== id);
-          setDebts(next);
-          await saveDebts(next);
+    // Payment history deliberately survives deleting a debt — see history.ts.
+    // Saying so here stops people deleting everything and wondering why the
+    // Progress tab still shows payments.
+    Alert.alert(
+      'Delete debt?',
+      "Payments you've logged for it stay in your Progress history. This cannot be undone.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const next = debts.filter((d) => d.id !== id);
+            setDebts(next);
+            await saveDebts(next);
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
 
   const openPayment = (d: Debt) => {
@@ -112,7 +114,9 @@ export default function DebtsScreen() {
 
   const confirmPayment = async () => {
     if (!payingFor) return;
-    const amount = parseFloat(payAmount) || 0;
+    // Same parser as every other amount field. Using parseFloat here meant a
+    // pasted "1,200" logged a $1 payment while the Balance field read 1200.
+    const amount = parseAmount(payAmount);
     if (amount <= 0) {
       Alert.alert('Enter an amount', 'Payment must be greater than 0.');
       return;
@@ -129,12 +133,23 @@ export default function DebtsScreen() {
     setPayingFor(null);
 
     if (record.clearedDebt) {
-      Alert.alert(
-        '🎉 Debt cleared',
-        `${record.debtName} is paid off. Its $${payingFor.minPayment.toFixed(
-          2
-        )}/mo minimum now rolls into your next debt automatically.`
-      );
+      // There is no "next debt" to roll into when this was the last one, and
+      // promising a rollover that cannot happen sours the best moment the app
+      // has to offer.
+      const remaining = next.filter((d) => d.balance > 0.01);
+      if (remaining.length === 0) {
+        Alert.alert(
+          '🎉 You are debt free',
+          `${record.debtName} is paid off — and it was your last one. Every debt you tracked here is gone.`
+        );
+      } else {
+        Alert.alert(
+          '🎉 Debt cleared',
+          `${record.debtName} is paid off. Its ${formatMoney(
+            payingFor.minPayment
+          )}/mo minimum now rolls into your next debt automatically.`
+        );
+      }
     }
   };
 
@@ -213,12 +228,10 @@ export default function DebtsScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.rowName}>{item.name}</Text>
                   <Text style={styles.rowSub}>
-                    {(item.apr * 100).toFixed(2)}% APR · ${item.minPayment}/mo min
+                    {(item.apr * 100).toFixed(2)}% APR · {formatMoney(item.minPayment)}/mo min
                   </Text>
                 </View>
-                <Text style={styles.rowBalance}>
-                  ${item.balance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                </Text>
+                <Text style={styles.rowBalance}>{formatMoney(item.balance)}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => remove(item.id)}
@@ -264,12 +277,11 @@ export default function DebtsScreen() {
             <View style={styles.modalCard}>
               <Text style={styles.modalTitle}>Log payment</Text>
               <Text style={styles.payContext}>
-                {payingFor?.name} — balance $
-                {payingFor?.balance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                {payingFor?.name} — balance {payingFor ? formatMoney(payingFor.balance) : ''}
               </Text>
               {payingFor && (
                 <Text style={styles.payBreakdown}>
-                  About ${(payingFor.balance * (payingFor.apr / 12)).toFixed(2)} of this month's
+                  About {formatMoney(payingFor.balance * (payingFor.apr / 12))} of this month's
                   payment goes to interest.
                 </Text>
               )}
@@ -306,10 +318,19 @@ export default function DebtsScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           >
             <View style={styles.modalCard}>
-              <Text style={styles.modalTitle}>{isNew ? 'Add Debt' : 'Edit Debt'}</Text>
-              <Text style={styles.payBreakdown}>
-                Tap anywhere above this card to close the keypad.
-              </Text>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>{isNew ? 'Add Debt' : 'Edit Debt'}</Text>
+                {/* The decimal keypad has no Done key, so give it one. The
+                    Strategy screen already does this; the debt form used to
+                    just tell you to tap outside, which is not discoverable. */}
+                <TouchableOpacity
+                  onPress={Keyboard.dismiss}
+                  style={styles.doneBtn}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Text style={styles.doneBtnText}>Done</Text>
+                </TouchableOpacity>
+              </View>
               <Field
                 label="Name"
                 value={draft.name}
@@ -318,18 +339,22 @@ export default function DebtsScreen() {
               <Field
                 label="Balance ($)"
                 keyboardType="decimal-pad"
+                placeholder="2500"
                 value={draft.balance}
                 onChangeText={(v) => setDraft((d) => ({ ...d, balance: v }))}
               />
               <Field
                 label="APR (%)"
                 keyboardType="decimal-pad"
+                placeholder="19.99"
+                hint="Use the . key for a decimal — 5.5 is five and a half percent."
                 value={draft.apr}
                 onChangeText={(v) => setDraft((d) => ({ ...d, apr: v }))}
               />
               <Field
                 label="Minimum payment ($/mo)"
                 keyboardType="decimal-pad"
+                placeholder="75"
                 value={draft.minPayment}
                 onChangeText={(v) => setDraft((d) => ({ ...d, minPayment: v }))}
               />
@@ -362,6 +387,8 @@ function Field(props: {
   onChangeText: (v: string) => void;
   keyboardType?: 'default' | 'decimal-pad';
   autoFocus?: boolean;
+  placeholder?: string;
+  hint?: string;
 }) {
   return (
     <View style={{ marginBottom: 12 }}>
@@ -372,9 +399,12 @@ function Field(props: {
         onChangeText={props.onChangeText}
         keyboardType={props.keyboardType ?? 'default'}
         autoFocus={props.autoFocus}
+        placeholder={props.placeholder}
+        placeholderTextColor="#AAB"
         returnKeyType="done"
         onSubmitEditing={Keyboard.dismiss}
       />
+      {props.hint ? <Text style={styles.fieldHint}>{props.hint}</Text> : null}
     </View>
   );
 }
@@ -430,8 +460,17 @@ const styles = StyleSheet.create({
   limitBody: { fontSize: 13, color: '#5A4A20', marginTop: 4 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
-  modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 16 },
+  modalTitle: { fontSize: 18, fontWeight: '700' },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  doneBtn: { paddingHorizontal: 10, paddingVertical: 4 },
+  doneBtnText: { color: '#2E6BE6', fontSize: 16, fontWeight: '600' },
   fieldLabel: { fontSize: 12, color: '#666', marginBottom: 4 },
+  fieldHint: { fontSize: 11, color: '#888', marginTop: 4, lineHeight: 15 },
   input: { borderWidth: 1, borderColor: '#DDD', borderRadius: 8, padding: 10, fontSize: 15 },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8, gap: 12 },
   cancelBtn: { padding: 12 },

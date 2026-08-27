@@ -15,7 +15,14 @@ import {
   Keyboard,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { loadSettings, saveSettings, AppSettings, FREE_DEBT_LIMIT } from '../storage';
+import {
+  loadSettings,
+  saveSettings,
+  clearDebtsAndSettings,
+  AppSettings,
+  FREE_DEBT_LIMIT,
+} from '../storage';
+import { clearPayments } from '../history';
 import { restorePro } from '../purchases';
 import { scheduleMonthlyReminder, cancelReminders } from '../notifications';
 import { usePro } from '../ProContext';
@@ -89,6 +96,32 @@ export default function SettingsScreen() {
     }
   };
 
+  /**
+   * Deleting debts one by one leaves payment history behind by design, so
+   * without this there is no way to actually start over — which is exactly the
+   * dead end people hit when they try.
+   *
+   * Pro is deliberately NOT cleared. It was paid for.
+   */
+  const handleReset = () => {
+    Alert.alert(
+      'Reset all data?',
+      'This deletes every debt and every logged payment on this device. Your Pro purchase is not affected. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset everything',
+          style: 'destructive',
+          onPress: async () => {
+            await Promise.all([clearDebtsAndSettings(), clearPayments(), cancelReminders()]);
+            await refresh();
+            Alert.alert('Reset', 'Your debts and payment history have been cleared.');
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <ScrollView
       style={styles.container}
@@ -144,6 +177,14 @@ export default function SettingsScreen() {
       <TouchableOpacity style={styles.linkRow} onPress={handleRestore} disabled={restoring}>
         <Text style={styles.linkText}>{restoring ? 'Restoring…' : 'Restore purchase'}</Text>
       </TouchableOpacity>
+
+      <Text style={styles.sectionTitle}>Data</Text>
+      <TouchableOpacity style={styles.linkRow} onPress={handleReset}>
+        <Text style={styles.destructiveText}>Reset all data</Text>
+      </TouchableOpacity>
+      <Text style={styles.rowCaption}>
+        Deletes every debt and logged payment on this device. Your Pro purchase is not affected.
+      </Text>
 
       <Text style={styles.sectionTitle}>About</Text>
       <TouchableOpacity style={styles.linkRow} onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}>
@@ -208,6 +249,8 @@ const styles = StyleSheet.create({
   },
   linkRow: { backgroundColor: '#FFF', borderRadius: 12, padding: 14, marginBottom: 8 },
   linkText: { fontSize: 15, color: '#1B1F3B' },
+  destructiveText: { fontSize: 15, color: '#C33', fontWeight: '600' },
+  rowCaption: { fontSize: 12, color: '#888', marginTop: 6, lineHeight: 17 },
   disclaimer: {
     fontSize: 11,
     color: '#999',

@@ -15,10 +15,12 @@ import {
   loadPayments,
   deletePayment,
   summarize,
+  balanceAfterUndo,
   PaymentRecord,
   HistoryTotals,
 } from '../history';
 import { loadDebts, saveDebts } from '../storage';
+import { formatMoney } from '../format';
 
 interface Section {
   title: string;
@@ -61,12 +63,19 @@ export default function ProgressScreen() {
     }, [refresh])
   );
 
-  const undo = (record: PaymentRecord) => {
+  const undo = async (record: PaymentRecord) => {
+    // Show the balance this will actually produce, which is only the same as
+    // `balanceBefore` when this is the newest payment on the debt.
+    const debtsNow = await loadDebts();
+    const current = debtsNow.find((d) => d.id === record.debtId);
+    const resulting = current ? balanceAfterUndo(current.balance, record) : null;
+
     Alert.alert(
       'Undo this payment?',
-      `This removes the $${record.amount.toFixed(2)} payment to ${
-        record.debtName
-      } and restores the balance to $${record.balanceBefore.toFixed(2)}.`,
+      `This removes the ${formatMoney(record.amount)} payment to ${record.debtName}` +
+        (resulting === null
+          ? '. That debt has been deleted, so only the history entry is removed.'
+          : ` and puts ${formatMoney(resulting)} back on the balance.`),
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -74,11 +83,13 @@ export default function ProgressScreen() {
           style: 'destructive',
           onPress: async () => {
             await deletePayment(record.id);
-            // Put the balance back on the debt if it still exists.
+            // Reverse this payment's effect rather than restoring a snapshot —
+            // see balanceAfterUndo. Re-read here: the alert may have sat open
+            // long enough for the debt to change underneath us.
             const debts = await loadDebts();
             const target = debts.find((d) => d.id === record.debtId);
             if (target) {
-              target.balance = record.balanceBefore;
+              target.balance = balanceAfterUndo(target.balance, record);
               await saveDebts(debts);
             }
             await refresh();
@@ -114,11 +125,11 @@ export default function ProgressScreen() {
           <View style={styles.heroCard}>
             <Text style={styles.heroLabel}>Paid toward debt so far</Text>
             <Text style={styles.heroValue}>
-              ${Math.round(totals.totalPaid).toLocaleString()}
+              {formatMoney(totals.totalPaid, { cents: false })}
             </Text>
             <Text style={styles.heroSplit}>
-              ${Math.round(totals.totalPrincipal).toLocaleString()} principal ·{' '}
-              ${Math.round(totals.totalInterest).toLocaleString()} interest
+              {formatMoney(totals.totalPrincipal, { cents: false })} principal ·{' '}
+              {formatMoney(totals.totalInterest, { cents: false })} interest
             </Text>
           </View>
 
@@ -158,12 +169,12 @@ export default function ProgressScreen() {
               {item.clearedDebt ? '  🎉' : ''}
             </Text>
             <Text style={styles.rowSub}>
-              ${item.principalPortion.toFixed(2)} principal · ${item.interestPortion.toFixed(2)}{' '}
-              interest
+              {formatMoney(item.principalPortion)} principal ·{' '}
+              {formatMoney(item.interestPortion)} interest
             </Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={styles.rowAmount}>${item.amount.toFixed(2)}</Text>
+            <Text style={styles.rowAmount}>{formatMoney(item.amount)}</Text>
             <Text style={styles.rowDate}>
               {new Date(item.date).toLocaleDateString(undefined, {
                 month: 'short',

@@ -92,6 +92,41 @@ export async function deletePayment(id: string): Promise<PaymentRecord | null> {
   return found;
 }
 
+/**
+ * The balance a debt should have once `record` is undone.
+ *
+ * Every payment in the history has its own Undo button, so any record can be
+ * removed — not just the newest. Restoring `balanceBefore` directly is only
+ * correct for the most recent payment; do it to an older one and every later
+ * payment's effect is silently discarded. Log 1000->900 then 900->800, undo the
+ * first, and a naive restore puts the balance back to 1000 while an 800 record
+ * still sits in the history.
+ *
+ * So instead of restoring a snapshot, reverse this payment's *effect*:
+ *
+ *     newBalance = current - (balanceAfter - balanceBefore)
+ *
+ * That is order-independent and always leaves the balance consistent with the
+ * records that remain.
+ *
+ * Chosen over literally replaying the surviving payments because a replay would
+ * have to recompute interest for every later payment against a balance that no
+ * longer matches what was actually charged — rewriting history the user can see
+ * on screen. Reversing one transaction is what "undo" means to the person
+ * tapping it.
+ *
+ * Clamped at zero: a debt can be paid off, never negative.
+ */
+export function balanceAfterUndo(currentBalance: number, record: PaymentRecord): number {
+  const effect = record.balanceAfter - record.balanceBefore;
+  return Math.max(currentBalance - effect, 0);
+}
+
+/** Wipes all logged payments. Paired with clearDebtsAndSettings() by Settings. */
+export async function clearPayments(): Promise<void> {
+  await AsyncStorage.removeItem(PAYMENTS_KEY);
+}
+
 export interface HistoryTotals {
   totalPaid: number;
   totalPrincipal: number;

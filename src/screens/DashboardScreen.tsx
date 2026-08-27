@@ -13,14 +13,16 @@ import { loadDebts, loadSettings, AppSettings } from '../storage';
 import ShareMilestoneCard from '../components/ShareMilestoneCard';
 import BalanceChart from '../components/BalanceChart';
 import { usePro } from '../ProContext';
+import { formatMoney } from '../format';
 
 /**
- * Whole-dollar currency. Bare toLocaleString() emits up to three fraction
- * digits, so a balance of 31459.5708 renders as "$31,459.571" — which reads
- * as a bug in the largest number on the screen.
+ * Whole-dollar currency for the dashboard's projected totals, where pennies are
+ * noise. Bare toLocaleString() emits up to three fraction digits, so a balance
+ * of 31459.5708 renders as "$31,459.571" — which reads as a bug in the largest
+ * number on the screen.
  */
 function money(n: number): string {
-  return `$${Math.round(n).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  return formatMoney(n, { cents: false });
 }
 
 export default function DashboardScreen() {

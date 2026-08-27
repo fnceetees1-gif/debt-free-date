@@ -1,7 +1,8 @@
 // src/calculator.test.ts
 // Quick sanity test - run with: npx tsx src/calculator.test.ts
 import { simulatePayoff, compareStrategies, totalDebt, totalMinimumPayments, Debt } from './calculator';
-import { applyPayment } from './history';
+import { applyPayment, balanceAfterUndo } from './history';
+import { parseAmount, formatMoney } from './format';
 
 const sampleDebts: Debt[] = [
   { id: 'student', name: 'Student Loan', balance: 2000, apr: 0.08, minPayment: 60 },
@@ -205,6 +206,96 @@ check(
   '0% APR payment is entirely principal',
   r4.interestPortion === 0 && Math.abs(b4 - 400) < 0.01,
   `interest $${r4.interestPortion.toFixed(2)}, balance $${b4.toFixed(2)}`
+);
+
+// --- Undoing a payment -----------------------------------------------------
+// Every payment in the history has its own Undo button, so any of them can be
+// removed — not just the newest. Restoring balanceBefore looked right until you
+// undo an older payment, at which point every later payment silently vanishes
+// from the balance while staying visible in the history.
+
+const undoDebt: Debt = { id: 'u', name: 'Card', balance: 1000, apr: 0, minPayment: 50 };
+
+// Two payments: 1000 -> 900 -> 800.
+const { record: u1, newBalance: after1 } = applyPayment(undoDebt, 100);
+const { record: u2, newBalance: after2 } = applyPayment({ ...undoDebt, balance: after1 }, 100);
+
+check(
+  'two payments walk the balance down as expected',
+  Math.abs(after1 - 900) < 0.01 && Math.abs(after2 - 800) < 0.01,
+  `after1 $${after1.toFixed(2)}, after2 $${after2.toFixed(2)}`
+);
+
+// Undoing the NEWEST payment is the easy case: 800 -> 900.
+check(
+  'undoing the newest payment restores the previous balance',
+  Math.abs(balanceAfterUndo(after2, u2) - 900) < 0.01,
+  `got $${balanceAfterUndo(after2, u2).toFixed(2)}, want $900.00`
+);
+
+// Undoing the OLDER payment must leave the newer one intact: 800 -> 900,
+// not 1000. This is the bug: restoring u1.balanceBefore would give 1000 and
+// throw away the second payment.
+check(
+  'undoing an older payment keeps later payments applied',
+  Math.abs(balanceAfterUndo(after2, u1) - 900) < 0.01,
+  `got $${balanceAfterUndo(after2, u1).toFixed(2)}, want $900.00 (naive restore gives $1000.00)`
+);
+
+// Undo is order-independent: removing both, in either order, returns to 1000.
+const bothUndone = balanceAfterUndo(balanceAfterUndo(after2, u1), u2);
+const bothUndoneReversed = balanceAfterUndo(balanceAfterUndo(after2, u2), u1);
+check(
+  'undoing both payments returns to the original balance, in either order',
+  Math.abs(bothUndone - 1000) < 0.01 && Math.abs(bothUndoneReversed - 1000) < 0.01,
+  `$${bothUndone.toFixed(2)} and $${bothUndoneReversed.toFixed(2)}`
+);
+
+// A payment that grew the balance (below-interest) must reverse the other way.
+const growDebt: Debt = { id: 'g', name: 'Grower', balance: 1000, apr: 0.24, minPayment: 5 };
+const { record: g1, newBalance: grown } = applyPayment(growDebt, 5);
+check(
+  'undoing a below-interest payment removes the growth too',
+  grown > 1000 && Math.abs(balanceAfterUndo(grown, g1) - 1000) < 0.01,
+  `grew to $${grown.toFixed(2)}, undo gives $${balanceAfterUndo(grown, g1).toFixed(2)}`
+);
+
+check(
+  'undo never produces a negative balance',
+  balanceAfterUndo(0, { ...u1, balanceBefore: 0, balanceAfter: 100 }) === 0,
+  'clamped at zero'
+);
+
+// --- Parsing typed amounts -------------------------------------------------
+// The payment field used parseFloat while every other field stripped commas,
+// so the same text produced different numbers depending where you typed it.
+
+check(
+  'thousands separators are dropped',
+  parseAmount('1,200') === 1200 && parseAmount('1,200.50') === 1200.5,
+  `${parseAmount('1,200')} and ${parseAmount('1,200.50')}`
+);
+
+// iOS renders decimal-pad from the DEVICE locale, so a comma-decimal user types
+// "12,50" for twelve-fifty. Deleting the comma would make that 1250.
+check(
+  'a lone trailing comma is treated as a decimal point, not deleted',
+  parseAmount('12,50') === 12.5 && parseAmount('5,5') === 5.5,
+  `${parseAmount('12,50')} and ${parseAmount('5,5')}`
+);
+
+check(
+  'partial and empty input never produces NaN',
+  parseAmount('') === 0 && parseAmount('.') === 0 && parseAmount('5.') === 5,
+  `${parseAmount('')}, ${parseAmount('.')}, ${parseAmount('5.')}`
+);
+
+check(
+  'formatted money always shows two decimals, or none when asked',
+  formatMoney(1200.5) === '$1,200.50' &&
+    formatMoney(1200) === '$1,200.00' &&
+    formatMoney(31459.5708, { cents: false }) === '$31,460',
+  `${formatMoney(1200.5)}, ${formatMoney(1200)}, ${formatMoney(31459.5708, { cents: false })}`
 );
 
 if (failures > 0) {
