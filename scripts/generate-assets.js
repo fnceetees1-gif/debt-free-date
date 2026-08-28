@@ -192,4 +192,82 @@ write(
   })
 );
 
+// --- Play Store feature graphic ---------------------------------------------
+//
+// 1024x500, required by Google Play and with no App Store equivalent. It sits
+// above the listing with the app name printed underneath, so text in the image
+// would only repeat it — the motif does the work instead.
+//
+// The motif is the app's own balance chart: bars falling to nothing. It is the
+// one picture that says what the product does without a word of copy.
+//
+// Written outside assets/ because this ships to a store listing, not into the
+// binary. No alpha — Play wants a 24-bit PNG or JPEG.
+
+function featureGraphic(x, y, W, H) {
+  // Background: a slight vertical lift so 1024x500 of flat navy doesn't read as
+  // a dead rectangle in the listing.
+  const t = y / H;
+  const bg = [
+    Math.round(NAVY[0] + 10 * (1 - t)),
+    Math.round(NAVY[1] + 12 * (1 - t)),
+    Math.round(NAVY[2] + 18 * (1 - t)),
+  ];
+
+  const COUNT = 14;
+  const margin = 44;
+  const baseline = H - 68;
+  const span = W - margin * 2;
+  const gap = 22;
+  const barW = (span - gap * (COUNT - 1)) / COUNT;
+  const tallest = 300;
+  const shortest = 16;
+  const radius = 7;
+
+  let cov = 0;
+  let lastBar = false;
+  for (let i = 0; i < COUNT; i++) {
+    // Ease the descent so it falls away quickly then flattens, the way a real
+    // snowball payoff curve does rather than a straight diagonal.
+    const p = i / (COUNT - 1);
+    const eased = Math.pow(1 - p, 1.6);
+    const h = shortest + (tallest - shortest) * eased;
+
+    const left = margin + i * (barW + gap);
+    const cx = left + barW / 2;
+    const cy = baseline - h / 2;
+    const d = roundRectSDF(x + 0.5, y + 0.5, cx, cy, barW / 2, h / 2, radius);
+    const c = Math.min(Math.max(0.5 - d, 0), 1);
+    if (c > cov) {
+      cov = c;
+      lastBar = i === COUNT - 1;
+    }
+  }
+
+  // The final bar — the debt-free one — picks up a lighter tint so the eye
+  // lands on the end of the story.
+  const barColor = lastBar ? [0xd8, 0xff, 0xe8] : GREEN;
+  return blend(bg, barColor, cov);
+}
+
+{
+  const storeDir = path.join(__dirname, '..', 'store-assets');
+  fs.mkdirSync(storeDir, { recursive: true });
+
+  const W = 1024;
+  const H = 500;
+  const fg = encodePNG(W, H, false, (x, y) => featureGraphic(x, y, W, H));
+  fs.writeFileSync(path.join(storeDir, 'play-feature-graphic.png'), fg);
+  console.log(`  store-assets/play-feature-graphic.png  ${(fg.length / 1024).toFixed(1)} KB`);
+
+  // Play requires the store icon at exactly 512x512 — the App Store's 1024 is
+  // rejected. Rendered at the target size rather than downscaled so the edges
+  // stay as crisp as the 1024 version.
+  const icon = encodePNG(512, 512, false, (x, y) =>
+    blend(NAVY, GREEN, barsCoverage(x, y, 512, 0.82))
+  );
+  fs.writeFileSync(path.join(storeDir, 'play-icon-512.png'), icon);
+  console.log(`  store-assets/play-icon-512.png  ${(icon.length / 1024).toFixed(1)} KB`);
+}
+
 console.log('Done.');
