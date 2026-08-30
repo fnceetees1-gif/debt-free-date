@@ -1,5 +1,5 @@
 // src/screens/StrategyScreen.tsx
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   Keyboard,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Debt, PayoffStrategy, compareStrategies } from '../calculator';
+import { Debt, PayoffStrategy, compareStrategies, orderDebts } from '../calculator';
 import { loadDebts, loadSettings, saveSettings, AppSettings } from '../storage';
 import { usePro } from '../ProContext';
 import { parseAmount } from '../format';
@@ -34,29 +34,95 @@ export default function StrategyScreen() {
     setExtraInput(s.extraMonthlyPayment ? String(s.extraMonthlyPayment) : '');
   }, []);
 
+  // Same parser as every other amount field — parseFloat here meant "1,200"
+  // silently became an extra payment of $1. Computed before the early return
+  // below so the focus effect can see it.
+  const extra = parseAmount(extraInput);
+
+  // What the cleanup below needs to see. Kept in a ref because the focus effect
+  // is created once and would otherwise close over the first render's values.
+  const pending = useRef<{ extra: number; settings: AppSettings | null }>({
+    extra: 0,
+    settings: null,
+  });
+  useEffect(() => {
+    pending.current = { extra, settings };
+  });
+
   useFocusEffect(
     useCallback(() => {
       refresh();
+      return () => {
+        // Leaving the tab commits whatever is in the box.
+        //
+        // Saving on blur alone misses the ordinary case: type an extra payment,
+        // then swipe straight to Dashboard or Progress. The field never blurs,
+        // the value is never written, and every other screen goes on projecting
+        // with the old extra payment — so the amount you just entered appears to
+        // have been ignored.
+        const { extra: e, settings: s } = pending.current;
+        if (s && e !== s.extraMonthlyPayment) {
+          void saveSettings({ ...s, extraMonthlyPayment: e });
+        }
+      };
     }, [refresh])
   );
 
   if (!settings) return null;
 
-  // Same parser as every other amount field — parseFloat here meant "1,200"
-  // silently became an extra payment of $1.
-  const extra = parseAmount(extraInput);
   const { snowball, avalanche } = debts.length
     ? compareStrategies(debts, extra)
     : { snowball: null, avalanche: null };
 
+  /**
+   * Whether the two strategies genuinely come out the same for these debts.
+   *
+   * They often do, and the app used to just print the same number on both cards
+   * and offer to sell you a $0 saving — which reads as a broken calculator
+   * rather than as the true answer. Every case below is the engine being right:
+   *
+   *  - one debt, so there is no order to choose;
+   *  - smallest balance is also the highest rate, so both orders agree;
+   *  - no extra payment, so there is nothing to redirect and both plans just pay
+   *    the minimums in the same sequence.
+   */
+  const tied =
+    !!snowball &&
+    !!avalanche &&
+    snowball.totalMonths === avalanche.totalMonths &&
+    Math.abs(snowball.totalInterestPaid - avalanche.totalInterestPaid) < 1;
+
+  const ordersAgree =
+    debts.length > 1 &&
+    orderDebts(debts, 'snowball')
+      .map((d) => d.id)
+      .join('|') ===
+      orderDebts(debts, 'avalanche')
+        .map((d) => d.id)
+        .join('|');
+
+  const tieReason =
+    debts.length < 2
+      ? "You're tracking one debt, so there's no order to choose — both strategies are the same plan."
+      : ordersAgree
+        ? 'Your smallest balance is also your highest rate, so both strategies pay your debts in the same order.'
+        : extra <= 0
+          ? 'With no extra monthly payment there is nothing to redirect, so both plans just pay the minimums. Add an extra payment above and they will separate.'
+          : 'For these balances and rates the two plans work out even.';
+
   const pick = async (strategy: PayoffStrategy) => {
+    // Persist the typed extra even when the strategy tap is going to be blocked
+    // — the amount in the box is the user's, not a reward for buying Pro.
+    const next = { ...settings, extraMonthlyPayment: extra };
     if (strategy === 'avalanche' && !isPro) {
+      setSettings(next);
+      await saveSettings(next);
       showPaywall('Avalanche and the side-by-side comparison are part of Debt Free Date Pro.');
       return;
     }
-    const next = { ...settings, strategy, extraMonthlyPayment: extra };
-    setSettings(next);
-    await saveSettings(next);
+    const chosen = { ...next, strategy };
+    setSettings(chosen);
+    await saveSettings(chosen);
   };
 
   return (
@@ -119,7 +185,17 @@ export default function StrategyScreen() {
         onPress={() => pick('avalanche')}
       />
 
-      {!isPro && snowball && avalanche && (
+      {/* Two identical numbers with no explanation look like a bug, and
+          offering to sell a $0 saving looks worse. When the plans really do tie,
+          say so and say why instead. */}
+      {tied && snowball && (
+        <View style={styles.tieCard}>
+          <Text style={styles.tieTitle}>Both strategies cost you the same here</Text>
+          <Text style={styles.tieBody}>{tieReason}</Text>
+        </View>
+      )}
+
+      {!tied && !isPro && snowball && avalanche && (
         <TouchableOpacity style={styles.teaseCard} onPress={() => showPaywall()}>
           <Text style={styles.teaseTitle}>
             Avalanche could save you $
@@ -218,6 +294,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   teaseCard: { backgroundColor: '#FFF7E6', borderRadius: 12, padding: 14, marginBottom: 24 },
+  tieCard: { backgroundColor: '#EEF0F8', borderRadius: 12, padding: 14, marginBottom: 24 },
+  tieTitle: { fontWeight: '700', fontSize: 14, color: '#1B1F3B' },
+  tieBody: { fontSize: 13, color: '#4A4F70', marginTop: 4, lineHeight: 18 },
   teaseTitle: { fontWeight: '700', fontSize: 14, color: '#5A4A20' },
   teaseBody: { fontSize: 13, color: '#5A4A20', marginTop: 4, lineHeight: 18 },
   cardSubtitle: { fontSize: 13, color: '#666', marginTop: 2 },

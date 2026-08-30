@@ -50,7 +50,7 @@ export interface PayoffPlan {
  * - avalanche: highest APR first (mathematically optimal)
  * - custom: user-defined order via customOrder field
  */
-function orderDebts(debts: Debt[], strategy: PayoffStrategy): Debt[] {
+export function orderDebts(debts: Debt[], strategy: PayoffStrategy): Debt[] {
   const copy = [...debts];
   switch (strategy) {
     case 'snowball':
@@ -97,8 +97,10 @@ export function simulatePayoff(
       perDebt: [],
     };
 
-    // Priority is fixed from the balances at the start of the month, so a debt
-    // retired mid-month can't reshuffle the order underneath us.
+    // Priority is fixed from the balances the simulation started with, so a
+    // debt retired mid-run can't reshuffle the order underneath us. That also
+    // matches how the method is actually practised: you pick your order once
+    // and work it, you don't re-sort every month.
     const activeInOrder = priorityOrder
       .map((id) => working.find((d) => d.id === id))
       .filter((d): d is Debt => !!d && d.balance > 0.01);
@@ -186,6 +188,16 @@ export function simulatePayoff(
     debtFreeOrder,
     neverPaysOff: working.some((d) => d.balance > 0.01),
   };
+}
+
+/**
+ * The debt this strategy puts every spare dollar against first — the one the
+ * extra monthly payment is actually for. Cleared debts are skipped, so this
+ * moves down the list as debts are paid off.
+ */
+export function priorityDebt(debts: Debt[], strategy: PayoffStrategy): Debt | null {
+  const active = debts.filter((d) => d.balance > 0.01);
+  return orderDebts(active, strategy)[0] ?? null;
 }
 
 /** Convenience: compare snowball vs avalanche vs a custom order side by side. */

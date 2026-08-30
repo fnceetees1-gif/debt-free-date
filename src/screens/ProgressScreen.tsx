@@ -6,6 +6,7 @@ import {
   Text,
   StyleSheet,
   SectionList,
+  ScrollView,
   TouchableOpacity,
   Alert,
   RefreshControl,
@@ -16,11 +17,21 @@ import {
   deletePayment,
   summarize,
   balanceAfterUndo,
+  paidInMonth,
   PaymentRecord,
   HistoryTotals,
 } from '../history';
-import { loadDebts, saveDebts } from '../storage';
+import { loadDebts, saveDebts, loadSettings } from '../storage';
+import { totalMinimumPayments, Debt } from '../calculator';
 import { formatMoney } from '../format';
+
+/** What the plan says this month costs, and what's actually been logged. */
+interface MonthPlan {
+  minimums: number;
+  extra: number;
+  planned: number;
+  logged: number;
+}
 
 interface Section {
   title: string;
@@ -47,13 +58,30 @@ function groupByMonth(payments: PaymentRecord[]): Section[] {
 export default function ProgressScreen() {
   const [sections, setSections] = useState<Section[]>([]);
   const [totals, setTotals] = useState<HistoryTotals | null>(null);
+  const [monthPlan, setMonthPlan] = useState<MonthPlan | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    const payments = await loadPayments();
+    const [payments, debts, settings] = await Promise.all([
+      loadPayments(),
+      loadDebts(),
+      loadSettings(),
+    ]);
     setSections(groupByMonth(payments));
     setTotals(summarize(payments));
+
+    // Minimums are counted on debts that still have a balance — a cleared debt
+    // is not money you owe this month, and including it would tell people they
+    // were behind on a plan that no longer exists.
+    const active = debts.filter((d: Debt) => d.balance > 0.01);
+    const minimums = totalMinimumPayments(active);
+    const extra = active.length ? settings.extraMonthlyPayment : 0;
+    setMonthPlan(
+      active.length
+        ? { minimums, extra, planned: minimums + extra, logged: paidInMonth(payments) }
+        : null
+    );
     setRefreshing(false);
   }, []);
 
@@ -103,13 +131,20 @@ export default function ProgressScreen() {
 
   if (totals.paymentCount === 0) {
     return (
-      <View style={styles.emptyState}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{ padding: 16, paddingTop: 24 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+      >
+        {/* Shown before the first payment too. "$0 of $760 logged" is the
+            clearest possible statement of what the app wants from you. */}
+        <MonthCard plan={monthPlan} />
         <Text style={styles.emptyTitle}>No payments logged yet</Text>
         <Text style={styles.emptySubtitle}>
           When you make a payment, tap “Log payment” on the Debts tab. Your balance updates and
           your real progress shows up here.
         </Text>
-      </View>
+      </ScrollView>
     );
   }
 
@@ -122,6 +157,8 @@ export default function ProgressScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
       ListHeaderComponent={
         <View>
+          <MonthCard plan={monthPlan} />
+
           <View style={styles.heroCard}>
             <Text style={styles.heroLabel}>Paid toward debt so far</Text>
             <Text style={styles.heroValue}>
@@ -191,6 +228,56 @@ export default function ProgressScreen() {
   );
 }
 
+/**
+ * This month's plan against this month's reality.
+ *
+ * The extra monthly payment used to exist only inside the projection: you set
+ * it on Strategy, every screen quietly assumed you were paying it, and nothing
+ * ever told you whether you had. This is where it becomes real — the plan, what
+ * you've logged, and the gap, in the one place that knows what actually
+ * happened.
+ */
+function MonthCard({ plan }: { plan: MonthPlan | null }) {
+  if (!plan || plan.planned <= 0) return null;
+
+  const pct = Math.min(plan.logged / plan.planned, 1);
+  const remaining = plan.planned - plan.logged;
+  const onPlan = remaining <= 0.01;
+
+  return (
+    <View style={styles.monthCard}>
+      <View style={styles.monthTop}>
+        <Text style={styles.monthLabel}>
+          {new Date().toLocaleDateString(undefined, { month: 'long' })} plan
+        </Text>
+        <Text style={styles.monthAmount}>
+          {formatMoney(plan.logged, { cents: false })} of{' '}
+          {formatMoney(plan.planned, { cents: false })}
+        </Text>
+      </View>
+
+      <View style={styles.track}>
+        <View style={[styles.fill, { width: `${pct * 100}%` }, onPlan && styles.fillDone]} />
+      </View>
+
+      <Text style={styles.monthBreakdown}>
+        {formatMoney(plan.minimums, { cents: false })} in minimums
+        {plan.extra > 0
+          ? ` + ${formatMoney(plan.extra, { cents: false })} extra payment`
+          : ' · no extra payment set'}
+      </Text>
+
+      <Text style={[styles.monthStatus, onPlan && styles.monthStatusDone]}>
+        {onPlan
+          ? plan.logged - plan.planned > 0.01
+            ? `On plan, and ${formatMoney(plan.logged - plan.planned, { cents: false })} ahead.`
+            : "On plan for this month. That's the whole job."
+          : `${formatMoney(remaining, { cents: false })} left to log this month.`}
+      </Text>
+    </View>
+  );
+}
+
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.statBlock}>
@@ -211,6 +298,34 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 18, fontWeight: '600', marginBottom: 8 },
   emptySubtitle: { fontSize: 14, color: '#666', textAlign: 'center', lineHeight: 20 },
+  monthCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E4E6F0',
+  },
+  monthTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: 10,
+  },
+  monthLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#888',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  monthAmount: { fontSize: 15, fontWeight: '700', color: '#1B1F3B' },
+  track: { height: 8, borderRadius: 4, backgroundColor: '#EEF0F8', overflow: 'hidden' },
+  fill: { height: 8, borderRadius: 4, backgroundColor: '#1B1F3B' },
+  fillDone: { backgroundColor: '#3FA76B' },
+  monthBreakdown: { fontSize: 12, color: '#888', marginTop: 10, lineHeight: 17 },
+  monthStatus: { fontSize: 13, color: '#1B1F3B', marginTop: 6, fontWeight: '600' },
+  monthStatusDone: { color: '#2A7A4F' },
   heroCard: { backgroundColor: '#1B1F3B', borderRadius: 16, padding: 20, marginBottom: 16 },
   heroLabel: { color: '#AEB3D9', fontSize: 13 },
   heroValue: { color: '#FFFFFF', fontSize: 34, fontWeight: '700', marginTop: 4 },

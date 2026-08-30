@@ -25,6 +25,14 @@ export interface AppSettings {
    * Never grant access on this alone after `refreshProStatus()` has answered.
    */
   isPro: boolean;
+  /**
+   * First-launch onboarding gate. Absent in settings written by 1.0.1 and
+   * earlier, which is handled for free: loadSettings spreads the stored object
+   * over defaultSettings, so an upgrading user reads `false` and sees the
+   * welcome once. That's the intended behaviour — it explains features they
+   * already have but were never told about.
+   */
+  hasSeenWelcome: boolean;
 }
 
 export const defaultSettings: AppSettings = {
@@ -33,6 +41,7 @@ export const defaultSettings: AppSettings = {
   reminderDay: 1,
   remindersEnabled: false,
   isPro: false,
+  hasSeenWelcome: false,
 };
 
 /**
@@ -90,5 +99,13 @@ export function generateId(): string {
  * and Settings calls both.
  */
 export async function clearDebtsAndSettings(): Promise<void> {
+  // Carry two flags across the wipe. Neither is user data:
+  //   isPro          — paid for; RevenueCat would restore it anyway, but not
+  //                    until the next refresh, and a flicker back to locked
+  //                    after a reset looks like the purchase was lost.
+  //   hasSeenWelcome — someone deliberately starting over does not need to be
+  //                    walked through onboarding a second time.
+  const { isPro, hasSeenWelcome } = await loadSettings();
   await AsyncStorage.multiRemove([DEBTS_KEY, SETTINGS_KEY]);
+  await saveSettings({ ...defaultSettings, isPro, hasSeenWelcome });
 }

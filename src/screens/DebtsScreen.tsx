@@ -15,8 +15,15 @@ import {
   Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Debt } from '../calculator';
-import { loadDebts, saveDebts, generateId, FREE_DEBT_LIMIT } from '../storage';
+import { Debt, priorityDebt } from '../calculator';
+import {
+  loadDebts,
+  saveDebts,
+  loadSettings,
+  generateId,
+  AppSettings,
+  FREE_DEBT_LIMIT,
+} from '../storage';
 import { applyPayment, recordPayment } from '../history';
 import { usePro } from '../ProContext';
 import { parseAmount, formatMoney } from '../format';
@@ -47,9 +54,15 @@ export default function DebtsScreen() {
   const [isNew, setIsNew] = useState(false);
   const [payingFor, setPayingFor] = useState<Debt | null>(null);
   const [payAmount, setPayAmount] = useState('');
+  // Needed for the payment prefill: the extra monthly payment lives in
+  // settings, and without it the log always suggests the bare minimum.
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [prefillIncludedExtra, setPrefillIncludedExtra] = useState(false);
 
   const refresh = useCallback(async () => {
-    setDebts(await loadDebts());
+    const [d, s] = await Promise.all([loadDebts(), loadSettings()]);
+    setDebts(d);
+    setSettings(s);
   }, []);
 
   useFocusEffect(
@@ -107,9 +120,28 @@ export default function DebtsScreen() {
     );
   };
 
+  /**
+   * Prefills the minimum, plus the extra monthly payment when this is the debt
+   * the strategy is actually targeting.
+   *
+   * The whole premise of the app is that the projection and the logged history
+   * are comparable. The projection assumes the target debt gets minimum + extra
+   * every month; the log used to suggest the bare minimum, so a user following
+   * their own plan still logged payments that didn't match it, and the extra
+   * they'd committed to never showed up in Progress. The plan said one thing and
+   * the history said another, for no reason the user could see.
+   *
+   * Still just a prefill — it's selected on focus, so typing replaces it.
+   */
   const openPayment = (d: Debt) => {
+    const extra = settings?.extraMonthlyPayment ?? 0;
+    const target = settings ? priorityDebt(debts, settings.strategy) : null;
+    const withExtra = extra > 0 && target?.id === d.id;
+
     setPayingFor(d);
-    setPayAmount(String(d.minPayment || ''));
+    setPrefillIncludedExtra(withExtra);
+    const suggested = d.minPayment + (withExtra ? extra : 0);
+    setPayAmount(suggested > 0 ? String(Math.round(suggested * 100) / 100) : '');
   };
 
   const confirmPayment = async () => {
@@ -265,7 +297,19 @@ export default function DebtsScreen() {
         <Text style={styles.fabText}>{atFreeLimit ? '🔒' : '+'}</Text>
       </TouchableOpacity>
 
-      <Modal visible={payingFor !== null} animationType="slide" transparent>
+      {/* onRequestClose is the Android back button. Without it, back does
+          nothing while this sheet is open and the only way out is finding the
+          Cancel button — iOS has no back button, so this only ever broke on
+          Android. */}
+      <Modal
+        visible={payingFor !== null}
+        animationType="slide"
+        transparent
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setPayingFor(null);
+        }}
+      >
         {/* The decimal keypad on iOS has no Done key, so tapping the dimmed area
             above the sheet is the way out. Without this the keyboard covers the
             Cancel/Log buttons and the modal becomes a dead end. */}
@@ -285,14 +329,24 @@ export default function DebtsScreen() {
                   payment goes to interest.
                 </Text>
               )}
+              {/* Say where the number came from. A prefill larger than the
+                  minimum is alarming if you can't see why. */}
+              {prefillIncludedExtra && payingFor && settings && (
+                <Text style={styles.payPlanNote}>
+                  This is your target debt, so the suggested amount is the{' '}
+                  {formatMoney(payingFor.minPayment)} minimum plus your{' '}
+                  {formatMoney(settings.extraMonthlyPayment)} extra payment.
+                </Text>
+              )}
               <Field
                 label="Amount paid ($)"
                 keyboardType="decimal-pad"
                 value={payAmount}
                 onChangeText={setPayAmount}
                 autoFocus
-                // Prefilled with the minimum, which is usually right but often
-                // needs replacing. Select it so typing overwrites rather than
+                // Prefilled with the minimum (plus the extra payment on the
+                // target debt), which is usually right but often needs
+                // replacing. Select it so typing overwrites rather than
                 // appending to it.
                 selectTextOnFocus
               />
@@ -315,7 +369,17 @@ export default function DebtsScreen() {
         </TouchableWithoutFeedback>
       </Modal>
 
-      <Modal visible={modalVisible} animationType="slide" transparent>
+      {/* Same Android back-button fix as the payment sheet above. Discards the
+          draft, which is what Cancel does and what back should mean. */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setModalVisible(false);
+        }}
+      >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
           <KeyboardAvoidingView
             style={styles.modalOverlay}
@@ -435,6 +499,16 @@ const styles = StyleSheet.create({
   logBtnText: { color: '#1B1F3B', fontWeight: '600', fontSize: 13 },
   payContext: { fontSize: 14, color: '#444', marginBottom: 4 },
   payBreakdown: { fontSize: 12, color: '#888', marginBottom: 16, lineHeight: 17 },
+  payPlanNote: {
+    fontSize: 12,
+    color: '#2A5E3F',
+    backgroundColor: '#EAF7F0',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 16,
+    marginTop: -8,
+    lineHeight: 17,
+  },
   rowName: { fontSize: 15, fontWeight: '600' },
   rowSub: { fontSize: 12, color: '#888', marginTop: 2 },
   rowBalance: { fontSize: 15, fontWeight: '700', marginRight: 10 },

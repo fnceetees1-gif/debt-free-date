@@ -206,6 +206,183 @@ which is usually right but often needs changing — that one needed it most.
 
 ---
 
+## Fixed after the 1.0.1 submission — needs a new build
+
+These three came from Floyd using the Android internal-test build on Aug 30.
+They are **not** in iOS build 13 or Android versionCode 6.
+
+### 16. Every Android tab showed a box with an X in it *(Floyd, Aug 30)* ✅
+
+`Tab.Navigator` in `App.tsx` never set a `tabBarIcon` on any of the five tabs.
+With none supplied, React Navigation substitutes its own `MissingIcon`, which
+renders the character **`⏷`** (U+23F7).
+
+iOS ships a glyph for that codepoint, so on iPhone it drew a small triangle —
+odd, but not obviously broken, which is why it survived App Review and a
+TestFlight pass. Most Android system fonts have no glyph for it, so Android drew
+tofu: a box with an X in it, on all five tabs at once.
+
+**Fixed** with real icons in `src/components/TabIcons.tsx` — bar chart, card,
+target, checkmark, sliders — drawn from plain `View`s. No icon font added:
+`@expo/vector-icons` isn't installed, and it's a lot of binary for five shapes.
+Same reasoning as the hand-rolled PNG generator in `scripts/generate-assets.js`.
+Active/inactive tint colors set at the same time, since they were also default.
+
+---
+
+### 17. The extra monthly payment was silently dropped *(Floyd, Aug 30)* ✅
+
+`StrategyScreen` only persisted the extra payment in the `TextInput`'s `onBlur`.
+Type an amount and then swipe straight to another tab and the field never blurs,
+so nothing is written. Dashboard kept projecting on the old value and the amount
+just entered looked like it had been ignored.
+
+**Fixed:** leaving the tab now commits whatever is in the box, via a cleanup on
+the focus effect reading a ref (the effect is created once, so a closure would
+have captured the first render's value).
+
+Also fixed alongside it: tapping Avalanche as a free user opened the paywall and
+returned **before** saving, throwing away the extra payment the user had just
+typed. The amount in the box is theirs; it's saved now either way.
+
+---
+
+### 18. Logged payments could never match the plan *(Floyd, Aug 30)* ✅
+
+The Log-payment prefill was `String(d.minPayment)` — always the bare minimum.
+But the projection assumes the targeted debt gets **minimum + extra** every
+month. So a user following their own plan still logged the minimum, and the
+extra payment they'd committed to never appeared anywhere in Progress.
+
+That breaks the premise in the header of `history.ts`: the projection tells you
+where you're going, the log tells you where you've been, and *the gap between
+them is the interesting part*. The gap here was an artifact of the prefill.
+
+**Fixed:** `priorityDebt()` in `calculator.ts` exposes the debt the current
+strategy is targeting, and the prefill adds the extra payment on that debt only,
+with a line in the sheet saying where the number came from. Still just a prefill
+— `selectTextOnFocus` means typing replaces it.
+
+---
+
+### Not a bug: snowball and avalanche showing the same interest ✅ *(explained)*
+
+Reported as identical numbers on the Strategy cards. The engine is right — they
+really are the same in three common cases:
+
+- **one debt** — there is no order to choose;
+- **smallest balance is also the highest rate** — both orders agree;
+- **no extra monthly payment** — nothing to redirect, so both plans just pay the
+  minimums in the same sequence. This is the default state for a new user, and
+  with only two debts it holds even when the orders are exact opposites.
+
+The defect was the presentation: two identical figures with no explanation read
+as a broken calculator, and the free-user tease card offered to sell *"Avalanche
+could save you $0"*.
+
+**Fixed:** when the plans tie, the screen says so and says which of the three
+reasons applies. The $0 tease is suppressed. Four new assertions pin this down,
+including one that fails if opposed orders with a real extra payment ever stop
+diverging — i.e. if the comparison genuinely does break.
+
+---
+
+## 1.0.2 — platform sweep and feature batch
+
+Release decision: **Play vc6 is being replaced** (its five tabs render tofu, and
+it hasn't reached production so it costs nothing). **iOS build 13 rides out its
+review** — it carries the 15 real fixes and its tabs are merely odd, not broken.
+Everything below ships as **1.0.2** on both stores.
+
+### 19. Android back button was dead inside both Debts modals ✅
+
+`Modal` without `onRequestClose` swallows the Android back button. Log payment
+and Add/Edit debt both had none, so back did nothing and the only way out was
+finding Cancel. iOS has no back button, so it never surfaced there.
+
+**Fixed** — both dismiss on back, matching what Cancel does.
+
+---
+
+### 20. The paywall's close button sat under the Android status bar ✅
+
+`presentationStyle="pageSheet"` is **iOS-only**. On Android the paywall is a
+plain full-screen modal, and Expo defaults Android to edge-to-edge — so a
+hardcoded `top: 16` put the ✕ behind the status bar. Combined with #19's missing
+back handling being the only other exit, a user could be stuck on the paywall.
+
+**Fixed** — `SafeAreaProvider` added at the app root (`react-native-safe-area-
+context` was already a dependency and entirely unused), and the close button and
+scroll padding now offset by the real insets. Added `hitSlop` while there.
+
+---
+
+### 21. Splash flashed through blank to a spinner ✅
+
+`expo-splash-screen` was configured but `preventAutoHideAsync()` was never
+called, so the native splash hid as soon as JS mounted — splash, blank, spinner,
+app. **Fixed:** hold the splash until startup finishes, released in the same
+`finally` that releases the loading state.
+
+---
+
+### 22. Welcome screen *(feature)* ✅
+
+New `WelcomeScreen.tsx`, three panels, skippable, gated on
+`AppSettings.hasSeenWelcome`. `loadSettings` already spreads stored settings
+over `defaultSettings`, so the new field is a free migration — no migration
+code, and 1.0.1 users read `false` and see it once. That's intended: it explains
+the extra payment, which they have and were never told about.
+
+Panels: find your debt-free date / one debt at a time / log what you actually
+pay. The "not financial advice" disclosure is on the way in rather than only at
+the bottom of Settings. Deliberately not a paywall — guideline 3.1.1.
+
+Two details worth keeping: `initialRouteName` is only read when the navigator
+mounts, so the landing tab is decided *before* the welcome is dismissed; and a
+user who already has debts lands on Dashboard, not on an empty add form.
+
+`clearDebtsAndSettings` now carries `hasSeenWelcome` and `isPro` across the
+wipe — someone deliberately starting over doesn't need onboarding again, and a
+flicker back to locked after a reset reads as a lost purchase.
+
+---
+
+### 23. The extra payment was invisible in Progress *(feature)* ✅
+
+Fix #18 let logged payments *match* the plan. This makes Progress *show* it.
+
+A month card at the top of Progress: planned budget (minimums + extra, broken
+out), what's been logged, a bar, and the gap. Shown before the first payment
+too — "$0 of $760 logged" is the clearest possible statement of what the app
+wants from you.
+
+Minimums count only debts that still carry a balance. Including cleared ones
+would tell people they were behind on a plan that no longer exists.
+
+---
+
+### 24. The reminder never said when it would remind you *(feature)* ✅
+
+Settings had a switch and a number box and no way to tell what either did.
+
+The date arithmetic moved to a new `src/reminders.ts` — pure, no
+`expo-notifications` import, so `npm run test-engine` can reach it.
+`notifications.ts` re-exports it and schedules from the same functions, so the
+date shown and the date that fires cannot drift. Settings now reads
+*"Next reminder: Wed 1 Oct at 9:00 AM, then the same day each month"*, shown as a
+preview when reminders are off too. The day field explains why it caps at 28.
+
+Six new assertions cover the edges: rollover at the hour boundary, December into
+the next year, and day 31 in February resolving to the 28th rather than into
+March.
+
+---
+
+**Suite: 45 assertions, all passing.** Up from 29 at the 1.0.1 submission.
+
+---
+
 ## New findings — add them here
 
 *(nothing yet)*

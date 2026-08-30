@@ -1,7 +1,16 @@
 // src/calculator.test.ts
 // Quick sanity test - run with: npx tsx src/calculator.test.ts
-import { simulatePayoff, compareStrategies, totalDebt, totalMinimumPayments, Debt } from './calculator';
-import { applyPayment, balanceAfterUndo } from './history';
+import {
+  simulatePayoff,
+  compareStrategies,
+  orderDebts,
+  priorityDebt,
+  totalDebt,
+  totalMinimumPayments,
+  Debt,
+} from './calculator';
+import { applyPayment, balanceAfterUndo, paidInMonth, PaymentRecord } from './history';
+import { nextReminderDate, clampReminderDay, REMINDER_HOUR } from './reminders';
 import { parseAmount, formatMoney } from './format';
 
 const sampleDebts: Debt[] = [
@@ -296,6 +305,187 @@ check(
     formatMoney(1200) === '$1,200.00' &&
     formatMoney(31459.5708, { cents: false }) === '$31,460',
   `${formatMoney(1200.5)}, ${formatMoney(1200)}, ${formatMoney(31459.5708, { cents: false })}`
+);
+
+// --- Priority debt -----------------------------------------------------------
+//
+// This is what the Log-payment prefill keys off: the extra monthly payment is
+// only suggested on the debt the strategy is actually targeting. Get this wrong
+// and the app tells people to overpay the wrong card.
+
+const priorityCase: Debt[] = [
+  { id: 'small', name: 'Store card', balance: 800, apr: 0.1, minPayment: 30 },
+  { id: 'pricey', name: 'Visa', balance: 6000, apr: 0.2999, minPayment: 150 },
+];
+
+check(
+  'snowball targets the smallest balance, avalanche the highest rate',
+  priorityDebt(priorityCase, 'snowball')?.id === 'small' &&
+    priorityDebt(priorityCase, 'avalanche')?.id === 'pricey',
+  `${priorityDebt(priorityCase, 'snowball')?.id} / ${priorityDebt(priorityCase, 'avalanche')?.id}`
+);
+
+check(
+  'priority skips debts already paid off',
+  priorityDebt(
+    [{ ...priorityCase[0]!, balance: 0 }, priorityCase[1]!],
+    'snowball'
+  )?.id === 'pricey',
+  'cleared debts must not keep absorbing the extra payment'
+);
+
+check(
+  'priority of an empty or fully cleared list is null',
+  priorityDebt([], 'snowball') === null &&
+    priorityDebt([{ ...priorityCase[0]!, balance: 0 }], 'avalanche') === null,
+  'nothing to target'
+);
+
+// --- Strategies that genuinely tie -------------------------------------------
+//
+// The Strategy screen explains a tie instead of printing the same number twice
+// and offering a $0 saving. These are the cases it claims are ties, so the
+// engine had better agree.
+
+const single: Debt[] = [{ id: 'a', name: 'Visa', balance: 4000, apr: 0.2199, minPayment: 90 }];
+{
+  const { snowball, avalanche } = compareStrategies(single, 200);
+  check(
+    'one debt: both strategies are the same plan',
+    Math.abs(snowball.totalInterestPaid - avalanche.totalInterestPaid) < 1 &&
+      snowball.totalMonths === avalanche.totalMonths,
+    `${snowball.totalInterestPaid.toFixed(2)} vs ${avalanche.totalInterestPaid.toFixed(2)}`
+  );
+}
+
+// Smallest balance also carries the highest rate, so both orders agree.
+const aligned: Debt[] = [
+  { id: 'a', name: 'Store card', balance: 800, apr: 0.2999, minPayment: 30 },
+  { id: 'b', name: 'Visa', balance: 4000, apr: 0.1999, minPayment: 90 },
+  { id: 'c', name: 'Car loan', balance: 12000, apr: 0.0649, minPayment: 320 },
+];
+{
+  const sameOrder =
+    orderDebts(aligned, 'snowball').map((d) => d.id).join('|') ===
+    orderDebts(aligned, 'avalanche').map((d) => d.id).join('|');
+  const { snowball, avalanche } = compareStrategies(aligned, 250);
+  check(
+    'orders that agree produce identical interest',
+    sameOrder && Math.abs(snowball.totalInterestPaid - avalanche.totalInterestPaid) < 1,
+    `sameOrder=${sameOrder}, ${snowball.totalInterestPaid.toFixed(2)} vs ${avalanche.totalInterestPaid.toFixed(2)}`
+  );
+}
+
+// The one that matters most: opposed orders and a real extra payment must NOT
+// tie. If this ever ties, the comparison feature is broken rather than honest.
+const opposed: Debt[] = [
+  { id: 'a', name: 'Small cheap', balance: 500, apr: 0.05, minPayment: 25 },
+  { id: 'b', name: 'Medium', balance: 3000, apr: 0.18, minPayment: 60 },
+  { id: 'c', name: 'Big pricey', balance: 8000, apr: 0.2999, minPayment: 200 },
+];
+{
+  const { snowball, avalanche } = compareStrategies(opposed, 300);
+  check(
+    'opposed orders with an extra payment genuinely diverge',
+    snowball.totalInterestPaid - avalanche.totalInterestPaid > 1,
+    `snowball $${snowball.totalInterestPaid.toFixed(2)} vs avalanche $${avalanche.totalInterestPaid.toFixed(2)}`
+  );
+}
+
+// --- Reminder dates ----------------------------------------------------------
+//
+// Settings prints this date to the user. If it disagrees with what the
+// scheduler does, the app confidently names a day that nothing fires on.
+
+check(
+  'a day later this month is this month',
+  nextReminderDate(20, new Date(2026, 8, 5, 12, 0)).getTime() ===
+    new Date(2026, 8, 20, REMINDER_HOUR, 0, 0, 0).getTime(),
+  nextReminderDate(20, new Date(2026, 8, 5, 12, 0)).toString()
+);
+
+check(
+  'a day already past rolls to next month',
+  nextReminderDate(3, new Date(2026, 8, 20, 12, 0)).getTime() ===
+    new Date(2026, 9, 3, REMINDER_HOUR, 0, 0, 0).getTime(),
+  nextReminderDate(3, new Date(2026, 8, 20, 12, 0)).toString()
+);
+
+check(
+  'the day itself rolls over only once the hour has passed',
+  nextReminderDate(10, new Date(2026, 8, 10, 8, 0)).getMonth() === 8 &&
+    nextReminderDate(10, new Date(2026, 8, 10, 10, 0)).getMonth() === 9,
+  '8am same day, 10am next month'
+);
+
+check(
+  'December rolls into January of the next year',
+  (() => {
+    const d = nextReminderDate(5, new Date(2026, 11, 20, 12, 0));
+    return d.getFullYear() === 2027 && d.getMonth() === 0 && d.getDate() === 5;
+  })(),
+  nextReminderDate(5, new Date(2026, 11, 20, 12, 0)).toDateString()
+);
+
+check(
+  'reminder day is clamped to a date every month actually has',
+  clampReminderDay(31) === 28 && clampReminderDay(0) === 1 && clampReminderDay(-4) === 1,
+  `${clampReminderDay(31)}, ${clampReminderDay(0)}, ${clampReminderDay(-4)}`
+);
+
+// A day past 28 must never silently land in the wrong month. new Date(2026, 1,
+// 31) is 3 March, so an unclamped day would fire days late every February.
+check(
+  'day 31 in February resolves to the 28th, not into March',
+  (() => {
+    const d = nextReminderDate(31, new Date(2026, 1, 1, 12, 0));
+    return d.getMonth() === 1 && d.getDate() === 28;
+  })(),
+  nextReminderDate(31, new Date(2026, 1, 1, 12, 0)).toDateString()
+);
+
+// --- This month's logged total -----------------------------------------------
+//
+// Drives the "September plan" card on Progress — the thing that finally makes
+// the extra payment visible against what was actually paid.
+
+const rec = (id: string, date: Date, amount: number): PaymentRecord => ({
+  id,
+  debtId: 'd',
+  debtName: 'Visa',
+  date: date.toISOString(),
+  amount,
+  interestPortion: 0,
+  principalPortion: amount,
+  balanceBefore: 1000,
+  balanceAfter: 1000 - amount,
+  clearedDebt: false,
+});
+
+const spanning = [
+  rec('1', new Date(2026, 8, 2, 10, 0), 100),
+  rec('2', new Date(2026, 8, 26, 10, 0), 250),
+  rec('3', new Date(2026, 7, 30, 10, 0), 900), // previous month
+  rec('4', new Date(2026, 9, 1, 10, 0), 400), // next month
+];
+
+check(
+  'this month totals only this calendar month',
+  paidInMonth(spanning, new Date(2026, 8, 15)) === 350,
+  `${paidInMonth(spanning, new Date(2026, 8, 15))} (expected 350)`
+);
+
+check(
+  'a month with nothing logged totals zero, not NaN',
+  paidInMonth(spanning, new Date(2026, 10, 15)) === 0 && paidInMonth([], new Date()) === 0,
+  `${paidInMonth(spanning, new Date(2026, 10, 15))}`
+);
+
+// Same day-of-month in a different year must not be counted.
+check(
+  'the same month in another year is excluded',
+  paidInMonth(spanning, new Date(2025, 8, 15)) === 0,
+  `${paidInMonth(spanning, new Date(2025, 8, 15))}`
 );
 
 if (failures > 0) {

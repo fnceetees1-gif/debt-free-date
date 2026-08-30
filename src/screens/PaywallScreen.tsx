@@ -19,6 +19,7 @@ import {
   Linking,
   ScrollView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FREE_DEBT_LIMIT } from '../storage';
 import { getProPriceString, purchasePro, restorePro, type PurchaseResult } from '../purchases';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '../links';
@@ -34,6 +35,11 @@ const FALLBACK_PRICE = '$4.99';
 export default function PaywallScreen({ onUnlocked, onClose, reason }: Props) {
   const [busy, setBusy] = useState<'buy' | 'restore' | null>(null);
   const [price, setPrice] = useState<string | null>(null);
+  // presentationStyle="pageSheet" is iOS-only, so on Android this is a
+  // full-screen modal — and Expo defaults Android to edge-to-edge, which puts a
+  // hardcoded top:16 behind the status bar. That would hide the only visible way
+  // out of the paywall.
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     let cancelled = false;
@@ -80,9 +86,20 @@ export default function PaywallScreen({ onUnlocked, onClose, reason }: Props) {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: styles.content.paddingTop + insets.top, paddingBottom: 40 + insets.bottom },
+      ]}
+    >
       {onClose && (
-        <TouchableOpacity style={styles.closeBtn} onPress={onClose} accessibilityLabel="Close">
+        <TouchableOpacity
+          style={[styles.closeBtn, { top: 16 + insets.top }]}
+          onPress={onClose}
+          accessibilityLabel="Close"
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
           <Text style={styles.closeText}>✕</Text>
         </TouchableOpacity>
       )}

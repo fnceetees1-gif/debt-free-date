@@ -26,6 +26,7 @@ import { clearPayments } from '../history';
 import { parseAmount } from '../format';
 import { restorePro } from '../purchases';
 import { scheduleMonthlyReminder, cancelReminders } from '../notifications';
+import { nextReminderDate, clampReminderDay } from '../reminders';
 import { usePro } from '../ProContext';
 import { PRIVACY_POLICY_URL, TERMS_URL, SUPPORT_URL } from '../links';
 
@@ -82,7 +83,7 @@ export default function SettingsScreen() {
   };
 
   const commitDay = async () => {
-    const parsed = Math.min(Math.max(Math.round(parseAmount(dayInput)) || 1, 1), 28);
+    const parsed = clampReminderDay(parseAmount(dayInput));
     setDayInput(String(parsed));
     const next = { ...settings, reminderDay: parsed };
     await persist(next);
@@ -178,7 +179,7 @@ export default function SettingsScreen() {
         <View style={styles.row}>
           <View style={{ flex: 1 }}>
             <Text style={styles.rowLabel}>Day of month</Text>
-            <Text style={styles.rowSub}>1–28</Text>
+            <Text style={styles.rowSub}>1–28, so the date exists in February too</Text>
           </View>
           <TextInput
             style={styles.dayInput}
@@ -193,6 +194,27 @@ export default function SettingsScreen() {
           />
         </View>
       )}
+
+      {/* The reminder used to be a switch and a number with no way to tell what
+          it would do. Say the actual date and time, computed by the same
+          function that schedules it. Shown when reminders are off too, so it
+          reads as a preview of what turning it on gets you. */}
+      <Text style={styles.rowCaption}>
+        {settings.remindersEnabled ? 'Next reminder: ' : 'Would remind you on '}
+        <Text style={styles.emphasis}>
+          {nextReminderDate(clampReminderDay(parseAmount(dayInput))).toLocaleDateString(undefined, {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+          })}{' '}
+          at{' '}
+          {nextReminderDate(clampReminderDay(parseAmount(dayInput))).toLocaleTimeString(undefined, {
+            hour: 'numeric',
+            minute: '2-digit',
+          })}
+        </Text>
+        , then the same day each month.
+      </Text>
 
       <Text style={styles.sectionTitle}>Purchase</Text>
       <TouchableOpacity style={styles.linkRow} onPress={handleRestore} disabled={restoring}>
@@ -272,6 +294,7 @@ const styles = StyleSheet.create({
   linkText: { fontSize: 15, color: '#1B1F3B' },
   destructiveText: { fontSize: 15, color: '#C33', fontWeight: '600' },
   rowCaption: { fontSize: 12, color: '#888', marginTop: 6, lineHeight: 17 },
+  emphasis: { color: '#1B1F3B', fontWeight: '600' },
   disclaimer: {
     fontSize: 11,
     color: '#999',

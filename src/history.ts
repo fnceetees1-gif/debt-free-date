@@ -127,6 +127,21 @@ export async function clearPayments(): Promise<void> {
   await AsyncStorage.removeItem(PAYMENTS_KEY);
 }
 
+/**
+ * Total logged in the calendar month containing `when`.
+ *
+ * This is the number that finally makes the extra payment visible: the plan
+ * says minimums + extra every month, and until now nothing anywhere compared
+ * that to what was actually paid.
+ */
+export function paidInMonth(payments: PaymentRecord[], when: Date = new Date()): number {
+  const key = monthKey(when);
+  return payments.reduce(
+    (sum, p) => (monthKey(new Date(p.date)) === key ? sum + p.amount : sum),
+    0
+  );
+}
+
 export interface HistoryTotals {
   totalPaid: number;
   totalPrincipal: number;

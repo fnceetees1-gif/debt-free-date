@@ -8,9 +8,13 @@
 // the app still gets reminders for a year.
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import { REMINDER_HOUR, clampReminderDay } from './reminders';
 
 const MONTHS_AHEAD = 12;
-const REMINDER_HOUR = 9;
+
+// The date arithmetic lives in reminders.ts so it can be unit tested without
+// pulling in expo-notifications. Re-exported so callers have one import.
+export { REMINDER_HOUR, clampReminderDay, nextReminderDate } from './reminders';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -50,7 +54,7 @@ export async function cancelReminders(): Promise<void> {
  * @param dayOfMonth 1-28 (28 max so every month has the date)
  */
 export async function scheduleMonthlyReminder(dayOfMonth: number): Promise<boolean> {
-  const day = Math.min(Math.max(Math.round(dayOfMonth), 1), 28);
+  const day = clampReminderDay(dayOfMonth);
 
   const granted = await ensureNotificationPermission();
   if (!granted) return false;
