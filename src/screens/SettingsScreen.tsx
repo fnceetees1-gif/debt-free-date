@@ -25,7 +25,7 @@ import { restorePro } from '../purchases';
 import { scheduleMonthlyReminder, cancelReminders } from '../notifications';
 import { nextReminderDate, clampReminderDay } from '../reminders';
 import { usePro } from '../ProContext';
-import { PRIVACY_POLICY_URL, TERMS_URL, SUPPORT_URL } from '../links';
+import { PRIVACY_POLICY_URL, TERMS_URL, SUPPORT_URL, openLink } from '../links';
 
 export default function SettingsScreen() {
   const { isPro, setPro, showPaywall } = usePro();
@@ -242,13 +242,13 @@ export default function SettingsScreen() {
       </Text>
 
       <Text style={styles.sectionTitle}>About</Text>
-      <TouchableOpacity style={styles.linkRow} onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}>
+      <TouchableOpacity style={styles.linkRow} onPress={() => openLink(PRIVACY_POLICY_URL)}>
         <Text style={styles.linkText}>Privacy Policy</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.linkRow} onPress={() => Linking.openURL(TERMS_URL)}>
+      <TouchableOpacity style={styles.linkRow} onPress={() => openLink(TERMS_URL)}>
         <Text style={styles.linkText}>Terms of Use</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.linkRow} onPress={() => Linking.openURL(SUPPORT_URL)}>
+      <TouchableOpacity style={styles.linkRow} onPress={() => openLink(SUPPORT_URL)}>
         <Text style={styles.linkText}>Support</Text>
       </TouchableOpacity>
 

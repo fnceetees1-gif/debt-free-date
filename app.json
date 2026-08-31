@@ -43,7 +43,8 @@
           "color": "#1B1F3B"
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      "expo-web-browser"
     ],
     "extra": {
       "revenueCatApiKeyIos": "appl_OgMiCfArEihCODJdVqvwmtyzEow",

@@ -16,13 +16,12 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Linking,
   ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FREE_DEBT_LIMIT } from '../storage';
 import { getProPriceString, purchasePro, restorePro, type PurchaseResult } from '../purchases';
-import { PRIVACY_POLICY_URL, TERMS_URL } from '../links';
+import { PRIVACY_POLICY_URL, TERMS_URL, openLink } from '../links';
 
 interface Props {
   onUnlocked: () => void;
@@ -142,11 +141,11 @@ export default function PaywallScreen({ onUnlocked, onClose, reason }: Props) {
       </Text>
 
       <View style={styles.legalRow}>
-        <TouchableOpacity onPress={() => Linking.openURL(TERMS_URL)}>
+        <TouchableOpacity onPress={() => openLink(TERMS_URL)}>
           <Text style={styles.legalLink}>Terms of Use</Text>
         </TouchableOpacity>
         <Text style={styles.legalDot}>·</Text>
-        <TouchableOpacity onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}>
+        <TouchableOpacity onPress={() => openLink(PRIVACY_POLICY_URL)}>
           <Text style={styles.legalLink}>Privacy Policy</Text>
         </TouchableOpacity>
       </View>
