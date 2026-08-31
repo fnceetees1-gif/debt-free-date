@@ -383,6 +383,95 @@ March.
 
 ---
 
+## Found on a real Android device — Aug 30, still 1.0.2
+
+Everything below came out of Floyd installing internal-test builds and using
+them. None of it was reachable by reading the code, and none of it reproduced
+on iOS. The pattern is the same each time: **nothing in this app used safe
+areas or Android keyboard handling until today**, and iOS quietly forgave all
+of it.
+
+### 25. The Dashboard was blank before the first debt ✅
+
+Reported as "it's just blank". It was the empty state: two lines of grey text
+centred on an empty field, which reads as a screen that failed to load rather
+than one waiting for input.
+
+**Fixed** — the mark, a headline that says what the app is for, and a button
+that navigates to Debts *with an openAdd param* so you land in the form rather
+than on a screen where you still have to find the `+`.
+
+Same pass reworked the populated screen: the app is called Debt Free Date and
+the date sat in a small box with the same weight as the minimum payment total,
+while the hero went to the one number that gets worse the more debt you have.
+Date leads now, with a duration and a progress bar. Details in git.
+
+---
+
+### 26. The reminder day was typed, and capped at 28 ✅
+
+A number pad and a caption explaining the cap. Now a 1–31 tap grid, and the
+cap is gone — days that don't exist in a month fall back to that month's last
+day, so the 31st fires on 28 February and 30 April.
+
+Two traps, both now covered by tests: `new Date(2026, 3, 31)` is 1 May, not
+"April 31st", so the clamp has to happen per month inside the scheduling loop;
+and the fallback must not stick — March has to return to the 31st after
+February's 28th.
+
+---
+
+### 27. Sheet buttons were drawn under the Android navigation bar ✅
+
+Both bottom sheets had a flat 20pt of bottom padding. Android runs edge-to-edge,
+so Save on Add Debt and Log it on Log payment sat under the gesture nav bar.
+
+**Fixed** with the real bottom inset. Add Debt is additionally capped at 88% of
+the screen with the fields scrolling inside, so a tall form can't grow past the
+edge and carry its buttons with it.
+
+Found while checking the rest: the debt list had 16pt of bottom padding under a
+FAB occupying the last ~96pt, so the final debt's Log payment button sat under
+the `+`. Invisible at the 2-debt free limit, obvious to a Pro user.
+
+---
+
+### 28. The keyboard covered the field you were typing into ✅ **worst of the batch**
+
+`KeyboardAvoidingView` was set to behave on iOS only. `app.json` leaves
+`softwareKeyboardLayoutMode` at Expo's default of `resize`, so the Android
+*activity* does move — but a React Native `<Modal>` renders in its own window
+and doesn't inherit that. Nothing moved: the keypad opened straight over the
+sheet.
+
+**Fixed** with `behavior="padding"` on both platforms, which suits a bottom
+sheet — padding equal to the keyboard height lifts the card clear.
+
+Worth recording that this was spotted in the code earlier the same day and
+talked away, on the reasoning that a covered button would have been reported as
+fully hidden rather than partially. That was armchair reasoning against someone
+holding the device. It cost two builds.
+
+---
+
+### 29. A "Done" button that finished nothing ✅
+
+Its entire action was `Keyboard.dismiss`. Reported as "Done does not respond" —
+correctly, because on a form a button labelled Done should finish the form, and
+this one slid the keypad away, or did nothing at all when the keypad was
+already down.
+
+It was added when the keypad covered Save and Cancel and dismissing it was the
+only way to reach them. #28 removed that reason. **Removed.**
+
+The first guess at this was that a wrapping `TouchableWithoutFeedback` was
+eating the tap. Wrong, and disproved immediately: Save works from inside the
+same wrapper. The backdrop was restructured into a sibling anyway — it is
+better structure, and this codebase has already been bitten once by a nested
+touchable stealing a tap (see the delete button) — but it was not the cause.
+
+---
+
 ## New findings — add them here
 
 *(nothing yet)*
