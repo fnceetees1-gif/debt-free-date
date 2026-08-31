@@ -457,20 +457,19 @@ export default function DebtsScreen() {
           </TouchableWithoutFeedback>
 
           <View style={sheetStyle}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>{isNew ? 'Add Debt' : 'Edit Debt'}</Text>
-                {/* The decimal keypad has no Done key, so give it one. Styled as
-                    a real button rather than bare text — at 10x4 padding it was
-                    both hard to hit and hard to read as tappable. */}
-                <TouchableOpacity
-                  onPress={Keyboard.dismiss}
-                  style={styles.doneBtn}
-                  accessibilityRole="button"
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                >
-                  <Text style={styles.doneBtnText}>Done</Text>
-                </TouchableOpacity>
-              </View>
+              {/* There used to be a "Done" button here whose only action was
+                  Keyboard.dismiss. It existed because the decimal keypad has no
+                  Done key of its own and the keypad used to cover Save and
+                  Cancel — dismissing it was the only way to reach them.
+
+                  That is no longer true: the sheet now lifts above the keypad
+                  and the buttons are pinned, so the keypad never hides anything
+                  that matters. What was left was a button labelled "Done" that
+                  did not finish anything — it slid the keypad away, or did
+                  nothing at all if the keypad was already down. Reported, quite
+                  reasonably, as "Done does not respond". A control whose only
+                  effect is invisible is worse than no control. */}
+              <Text style={styles.modalHeading}>{isNew ? 'Add Debt' : 'Edit Debt'}</Text>
               {/* Four fields plus a header and two buttons is taller than a
                   short screen with the keypad up. Scrolling the fields — and
                   only the fields — keeps Save pinned and reachable no matter
@@ -640,19 +639,7 @@ const styles = StyleSheet.create({
     maxHeight: '88%',
   },
   modalTitle: { fontSize: 18, fontWeight: '700' },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  doneBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 16,
-    backgroundColor: '#EDF1FC',
-  },
-  doneBtnText: { color: '#2E6BE6', fontSize: 15, fontWeight: '700' },
+  modalHeading: { fontSize: 18, fontWeight: '700', marginBottom: 16 },
   fieldLabel: { fontSize: 12, color: '#666', marginBottom: 4 },
   fieldHint: { fontSize: 11, color: '#888', marginTop: 4, lineHeight: 15 },
   input: { borderWidth: 1, borderColor: '#DDD', borderRadius: 8, padding: 10, fontSize: 15 },
