@@ -1,5 +1,5 @@
 // src/screens/DebtsScreen.tsx
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -55,21 +55,28 @@ export default function DebtsScreen() {
   // edge-to-edge, so without the inset the last row of the card — the Save
   // button — is drawn underneath the gesture navigation bar.
   const insets = useSafeAreaInsets();
-  const sheetStyle = [styles.modalCard, { paddingBottom: 20 + insets.bottom }];
 
   /**
-   * A ScrollView does not scroll a newly focused TextInput into view on its
-   * own. Lifting the sheet above the keyboard leaves it short enough that the
-   * last two fields can sit below the fold, so tapping either scrolls the form
-   * down to them.
-   *
-   * The delay lets the keyboard finish animating first — scrolling to the end
-   * of a box that is still being resized lands in the wrong place.
+   * The bottom inset is for the gesture navigation bar. When the keypad is up it
+   * is already covering that strip, so reserving it a second time leaves a band
+   * of dead white between the buttons and the keyboard — roughly the height of a
+   * whole field, on a sheet that is short of room precisely when the keypad is
+   * up. Reserve it only when there is no keypad to reserve it against.
    */
-  const formScroll = useRef<ScrollView>(null);
-  const revealLastFields = () => {
-    setTimeout(() => formScroll.current?.scrollToEnd({ animated: true }), 250);
-  };
+  const [keypadUp, setKeypadUp] = useState(false);
+  useEffect(() => {
+    const shown = Keyboard.addListener('keyboardDidShow', () => setKeypadUp(true));
+    const hidden = Keyboard.addListener('keyboardDidHide', () => setKeypadUp(false));
+    return () => {
+      shown.remove();
+      hidden.remove();
+    };
+  }, []);
+
+  const sheetStyle = [
+    styles.modalCard,
+    { paddingBottom: 20 + (keypadUp ? 0 : insets.bottom) },
+  ];
   const [debts, setDebts] = useState<Debt[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [draft, setDraft] = useState<DebtDraft>(EMPTY_DRAFT);
@@ -470,14 +477,19 @@ export default function DebtsScreen() {
                   reasonably, as "Done does not respond". A control whose only
                   effect is invisible is worse than no control. */}
               <Text style={styles.modalHeading}>{isNew ? 'Add Debt' : 'Edit Debt'}</Text>
-              {/* Four fields plus a header and two buttons is taller than a
-                  short screen with the keypad up. Scrolling the fields — and
-                  only the fields — keeps Save pinned and reachable no matter
-                  how little room is left. flexShrink lets it give up height
-                  inside the card's maxHeight rather than pushing the buttons
-                  off the bottom. */}
+              {/* Scrolling the fields — and only the fields — keeps Save pinned
+                  and reachable no matter how little room is left. flexShrink
+                  lets it give up height inside the card's maxHeight rather than
+                  pushing the buttons off the bottom.
+
+                  There used to be a scroll-to-end on focusing the lower fields,
+                  from when the keypad covered the sheet entirely. Now that the
+                  sheet lifts clear it over-corrected: focusing APR scrolled Name
+                  off the top of a form that would otherwise have fitted. Removed
+                  — with the dead inset reclaimed above, all four fields fit with
+                  the keypad up, and manual scrolling covers the short screens
+                  that still don't. */}
               <ScrollView
-                ref={formScroll}
                 style={{ flexShrink: 1 }}
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
@@ -501,7 +513,6 @@ export default function DebtsScreen() {
                 hint="Use the . key for a decimal — 5.5 is five and a half percent."
                 value={draft.apr}
                 onChangeText={(v) => setDraft((d) => ({ ...d, apr: v }))}
-                onFocus={revealLastFields}
               />
               <Field
                 label="Minimum payment ($/mo)"
@@ -509,7 +520,6 @@ export default function DebtsScreen() {
                 placeholder="75"
                 value={draft.minPayment}
                 onChangeText={(v) => setDraft((d) => ({ ...d, minPayment: v }))}
-                onFocus={revealLastFields}
               />
               </ScrollView>
               <View style={styles.modalActions}>
