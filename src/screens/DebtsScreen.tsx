@@ -510,7 +510,7 @@ export default function DebtsScreen() {
                 label="APR (%)"
                 keyboardType="decimal-pad"
                 placeholder="19.99"
-                hint="Use the . key for a decimal — 5.5 is five and a half percent."
+                hint="5.5 is five and a half percent."
                 value={draft.apr}
                 onChangeText={(v) => setDraft((d) => ({ ...d, apr: v }))}
               />
@@ -556,7 +556,7 @@ function Field(props: {
   onFocus?: () => void;
 }) {
   return (
-    <View style={{ marginBottom: 12 }}>
+    <View style={{ marginBottom: 10 }}>
       <Text style={styles.fieldLabel}>{props.label}</Text>
       <TextInput
         style={styles.input}
@@ -646,14 +646,20 @@ const styles = StyleSheet.create({
     padding: 20,
     // Bounded so a tall form can never grow past the screen and carry the
     // buttons off the bottom with it; the fields scroll inside instead.
-    maxHeight: '88%',
+    //
+    // 93%, not 88%. With the keypad up the form came out about four points
+    // taller than the space, so the minimum payment field needed a nudge of a
+    // scroll to reach — the most annoying possible margin to miss by. The extra
+    // 5%, a shorter APR hint and slightly tighter field spacing put all four
+    // fields on screen at once.
+    maxHeight: '93%',
   },
   modalTitle: { fontSize: 18, fontWeight: '700' },
-  modalHeading: { fontSize: 18, fontWeight: '700', marginBottom: 16 },
+  modalHeading: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
   fieldLabel: { fontSize: 12, color: '#666', marginBottom: 4 },
   fieldHint: { fontSize: 11, color: '#888', marginTop: 4, lineHeight: 15 },
   input: { borderWidth: 1, borderColor: '#DDD', borderRadius: 8, padding: 10, fontSize: 15 },
-  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8, gap: 12 },
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4, gap: 12 },
   cancelBtn: { padding: 12 },
   saveBtn: { backgroundColor: '#1B1F3B', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 8 },
   saveBtnText: { color: '#FFF', fontWeight: '600' },
