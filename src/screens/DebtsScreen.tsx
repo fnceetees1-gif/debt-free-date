@@ -1,5 +1,5 @@
 // src/screens/DebtsScreen.tsx
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,6 @@ import {
   KeyboardAvoidingView,
   Keyboard,
   TouchableWithoutFeedback,
-  Platform,
 } from 'react-native';
 import { useFocusEffect, useRoute, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -57,6 +56,20 @@ export default function DebtsScreen() {
   // button — is drawn underneath the gesture navigation bar.
   const insets = useSafeAreaInsets();
   const sheetStyle = [styles.modalCard, { paddingBottom: 20 + insets.bottom }];
+
+  /**
+   * A ScrollView does not scroll a newly focused TextInput into view on its
+   * own. Lifting the sheet above the keyboard leaves it short enough that the
+   * last two fields can sit below the fold, so tapping either scrolls the form
+   * down to them.
+   *
+   * The delay lets the keyboard finish animating first — scrolling to the end
+   * of a box that is still being resized lands in the wrong place.
+   */
+  const formScroll = useRef<ScrollView>(null);
+  const revealLastFields = () => {
+    setTimeout(() => formScroll.current?.scrollToEnd({ animated: true }), 250);
+  };
   const [debts, setDebts] = useState<Debt[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [draft, setDraft] = useState<DebtDraft>(EMPTY_DRAFT);
@@ -343,15 +356,32 @@ export default function DebtsScreen() {
           setPayingFor(null);
         }}
       >
-        {/* The decimal keypad on iOS has no Done key, so tapping the dimmed area
-            above the sheet is the way out. Without this the keyboard covers the
-            Cancel/Log buttons and the modal becomes a dead end. */}
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-          <KeyboardAvoidingView
-            style={styles.modalOverlay}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          >
-            <View style={sheetStyle}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          // "padding" on BOTH platforms, not just iOS.
+          //
+          // app.json leaves softwareKeyboardLayoutMode at Expo's default of
+          // "resize", so the Android activity does move out of the keyboard's
+          // way — but a React Native <Modal> renders in its own window, and
+          // that window doesn't inherit the behaviour. Leaving this undefined on
+          // Android meant nothing moved at all: the keypad opened straight over
+          // the sheet, covering the field being typed into and the buttons.
+          //
+          // padding suits a bottom sheet: bottom padding equal to the keyboard
+          // height lifts the card clear of it. Double-counting isn't a risk here
+          // precisely because the modal window is the one thing that doesn't
+          // resize.
+          behavior="padding"
+        >
+          {/* Tap the dimmed area to dismiss the keypad — the decimal pad has no
+              Done key of its own. This is a SIBLING of the sheet, not a wrapper
+              around it: wrapping the whole overlay put every control on the card
+              inside a competing touch handler. */}
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+            <View style={styles.backdrop} />
+          </TouchableWithoutFeedback>
+
+          <View style={sheetStyle}>
               <Text style={styles.modalTitle}>Log payment</Text>
               <Text style={styles.payContext}>
                 {payingFor?.name} — balance {payingFor ? formatMoney(payingFor.balance) : ''}
@@ -397,9 +427,8 @@ export default function DebtsScreen() {
                   <Text style={styles.saveBtnText}>Log it</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          </KeyboardAvoidingView>
-        </TouchableWithoutFeedback>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Same Android back-button fix as the payment sheet above. Discards the
@@ -413,21 +442,31 @@ export default function DebtsScreen() {
           setModalVisible(false);
         }}
       >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-          <KeyboardAvoidingView
-            style={styles.modalOverlay}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          >
-            <View style={sheetStyle}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          // See the note on the payment sheet above — "padding" on both
+          // platforms, because a React Native Modal on Android renders in its
+          // own window and doesn't inherit the activity's resize behaviour.
+          behavior="padding"
+        >
+          {/* Backdrop as a sibling, not a wrapper. Wrapping the overlay put the
+              Done button inside a competing touch handler, which is why it
+              appeared not to respond. */}
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+            <View style={styles.backdrop} />
+          </TouchableWithoutFeedback>
+
+          <View style={sheetStyle}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>{isNew ? 'Add Debt' : 'Edit Debt'}</Text>
-                {/* The decimal keypad has no Done key, so give it one. The
-                    Strategy screen already does this; the debt form used to
-                    just tell you to tap outside, which is not discoverable. */}
+                {/* The decimal keypad has no Done key, so give it one. Styled as
+                    a real button rather than bare text — at 10x4 padding it was
+                    both hard to hit and hard to read as tappable. */}
                 <TouchableOpacity
                   onPress={Keyboard.dismiss}
                   style={styles.doneBtn}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  accessibilityRole="button"
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 >
                   <Text style={styles.doneBtnText}>Done</Text>
                 </TouchableOpacity>
@@ -439,6 +478,7 @@ export default function DebtsScreen() {
                   inside the card's maxHeight rather than pushing the buttons
                   off the bottom. */}
               <ScrollView
+                ref={formScroll}
                 style={{ flexShrink: 1 }}
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
@@ -462,6 +502,7 @@ export default function DebtsScreen() {
                 hint="Use the . key for a decimal — 5.5 is five and a half percent."
                 value={draft.apr}
                 onChangeText={(v) => setDraft((d) => ({ ...d, apr: v }))}
+                onFocus={revealLastFields}
               />
               <Field
                 label="Minimum payment ($/mo)"
@@ -469,6 +510,7 @@ export default function DebtsScreen() {
                 placeholder="75"
                 value={draft.minPayment}
                 onChangeText={(v) => setDraft((d) => ({ ...d, minPayment: v }))}
+                onFocus={revealLastFields}
               />
               </ScrollView>
               <View style={styles.modalActions}>
@@ -486,9 +528,8 @@ export default function DebtsScreen() {
                   <Text style={styles.saveBtnText}>Save</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          </KeyboardAvoidingView>
-        </TouchableWithoutFeedback>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -503,6 +544,7 @@ function Field(props: {
   placeholder?: string;
   hint?: string;
   selectTextOnFocus?: boolean;
+  onFocus?: () => void;
 }) {
   return (
     <View style={{ marginBottom: 12 }}>
@@ -516,6 +558,7 @@ function Field(props: {
         placeholder={props.placeholder}
         placeholderTextColor="#AAB"
         selectTextOnFocus={props.selectTextOnFocus}
+        onFocus={props.onFocus}
         returnKeyType="done"
         onSubmitEditing={Keyboard.dismiss}
       />
@@ -583,7 +626,10 @@ const styles = StyleSheet.create({
   },
   limitTitle: { fontWeight: '700', fontSize: 13, color: '#5A4A20' },
   limitBody: { fontSize: 13, color: '#5A4A20', marginTop: 4 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  // No justifyContent needed any more — the backdrop is a flex:1 sibling that
+  // pushes the sheet to the bottom on its own.
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  backdrop: { flex: 1 },
   modalCard: {
     backgroundColor: '#FFF',
     borderTopLeftRadius: 20,
@@ -600,8 +646,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 16,
   },
-  doneBtn: { paddingHorizontal: 10, paddingVertical: 4 },
-  doneBtnText: { color: '#2E6BE6', fontSize: 16, fontWeight: '600' },
+  doneBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: '#EDF1FC',
+  },
+  doneBtnText: { color: '#2E6BE6', fontSize: 15, fontWeight: '700' },
   fieldLabel: { fontSize: 12, color: '#666', marginBottom: 4 },
   fieldHint: { fontSize: 11, color: '#888', marginTop: 4, lineHeight: 15 },
   input: { borderWidth: 1, borderColor: '#DDD', borderRadius: 8, padding: 10, fontSize: 15 },
