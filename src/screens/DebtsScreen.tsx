@@ -7,6 +7,7 @@ import {
   FlatList,
   TouchableOpacity,
   Modal,
+  ScrollView,
   TextInput,
   Alert,
   KeyboardAvoidingView,
@@ -15,6 +16,7 @@ import {
   Platform,
 } from 'react-native';
 import { useFocusEffect, useRoute, useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Debt, priorityDebt } from '../calculator';
 import {
   loadDebts,
@@ -50,6 +52,11 @@ export default function DebtsScreen() {
   const { isPro, showPaywall } = usePro();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
+  // These sheets sit flush against the bottom of the screen. Android runs
+  // edge-to-edge, so without the inset the last row of the card — the Save
+  // button — is drawn underneath the gesture navigation bar.
+  const insets = useSafeAreaInsets();
+  const sheetStyle = [styles.modalCard, { paddingBottom: 20 + insets.bottom }];
   const [debts, setDebts] = useState<Debt[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [draft, setDraft] = useState<DebtDraft>(EMPTY_DRAFT);
@@ -271,7 +278,11 @@ export default function DebtsScreen() {
       <FlatList
         data={debts}
         keyExtractor={(d) => d.id}
-        contentContainerStyle={{ padding: 16 }}
+        // The FAB is 56pt tall sitting 24pt off the bottom, so it covers the
+        // last ~96pt of the list. With 16pt of padding the final debt's "Log
+        // payment" button ends up underneath it once the list is long enough to
+        // scroll — invisible at the 2-debt free limit, obvious to a Pro user.
+        contentContainerStyle={{ padding: 16, paddingBottom: 96 }}
         renderItem={({ item }) => (
           <View style={styles.card}>
             {/* Delete must be a SIBLING of the edit target, not nested inside it.
@@ -340,7 +351,7 @@ export default function DebtsScreen() {
             style={styles.modalOverlay}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           >
-            <View style={styles.modalCard}>
+            <View style={sheetStyle}>
               <Text style={styles.modalTitle}>Log payment</Text>
               <Text style={styles.payContext}>
                 {payingFor?.name} — balance {payingFor ? formatMoney(payingFor.balance) : ''}
@@ -407,7 +418,7 @@ export default function DebtsScreen() {
             style={styles.modalOverlay}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           >
-            <View style={styles.modalCard}>
+            <View style={sheetStyle}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>{isNew ? 'Add Debt' : 'Edit Debt'}</Text>
                 {/* The decimal keypad has no Done key, so give it one. The
@@ -421,6 +432,17 @@ export default function DebtsScreen() {
                   <Text style={styles.doneBtnText}>Done</Text>
                 </TouchableOpacity>
               </View>
+              {/* Four fields plus a header and two buttons is taller than a
+                  short screen with the keypad up. Scrolling the fields — and
+                  only the fields — keeps Save pinned and reachable no matter
+                  how little room is left. flexShrink lets it give up height
+                  inside the card's maxHeight rather than pushing the buttons
+                  off the bottom. */}
+              <ScrollView
+                style={{ flexShrink: 1 }}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
               <Field
                 label="Name"
                 value={draft.name}
@@ -448,6 +470,7 @@ export default function DebtsScreen() {
                 value={draft.minPayment}
                 onChangeText={(v) => setDraft((d) => ({ ...d, minPayment: v }))}
               />
+              </ScrollView>
               <View style={styles.modalActions}>
                 <TouchableOpacity
                   style={styles.cancelBtn}
@@ -561,7 +584,15 @@ const styles = StyleSheet.create({
   limitTitle: { fontWeight: '700', fontSize: 13, color: '#5A4A20' },
   limitBody: { fontSize: 13, color: '#5A4A20', marginTop: 4 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
+  modalCard: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    // Bounded so a tall form can never grow past the screen and carry the
+    // buttons off the bottom with it; the fields scroll inside instead.
+    maxHeight: '88%',
+  },
   modalTitle: { fontSize: 18, fontWeight: '700' },
   modalHeader: {
     flexDirection: 'row',
