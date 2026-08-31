@@ -11,8 +11,9 @@ Email **thomiandesigns@aol.com** and I'll get back to you.
 ### I bought Pro but it's showing as the free version
 
 Open **Settings → Restore purchase**. Make sure you're signed in with the same
-Apple ID you used to buy it. Restoring is free and can be done as many times as
-you need, on any device you own.
+store account you used to buy it — your Apple ID on iOS, your Google account on
+Android. Restoring is free and can be done as many times as you need, on any
+device you own.
 
 ### My debt-free date says the payments never clear the debt
 
@@ -32,7 +33,7 @@ first debt earlier — which some people find easier to stick with.
 
 No. Everything stays on your device. If you delete the app or lose the device,
 the data is gone — there is no copy on a server. Your Pro purchase is tied to
-your Apple ID and can always be restored.
+your store account — Apple ID or Google account — and can always be restored.
 
 ### Does this connect to my bank?
 

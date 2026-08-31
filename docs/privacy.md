@@ -30,18 +30,20 @@ you, because we never had a copy.
 ## Purchases
 
 Debt Free Date offers a one-time purchase to unlock additional features. That
-transaction is handled by Apple, and by RevenueCat, which we use to verify
-whether a purchase is valid and to restore it if you reinstall the app or
-change devices.
+transaction is handled by the app store you bought through — **Apple** on iOS or
+**Google** on Android — and by RevenueCat, which we use to verify whether a
+purchase is valid and to restore it if you reinstall the app or change devices.
 
 For this to work, RevenueCat receives an anonymous, randomly generated
-identifier for your installation, along with the purchase receipt Apple issues.
-It does not receive your name, email address, or any of the debt information you
-enter in the app. Apple's own handling of your payment details is governed by
-Apple's privacy policy; we never see your payment information.
+identifier for your installation, along with the purchase receipt the store
+issues. It does not receive your name, email address, or any of the debt
+information you enter in the app. Apple's and Google's own handling of your
+payment details is governed by their privacy policies; we never see your payment
+information.
 
 - RevenueCat's privacy policy: <https://www.revenuecat.com/privacy>
 - Apple's privacy policy: <https://www.apple.com/legal/privacy/>
+- Google's privacy policy: <https://policies.google.com/privacy>
 
 ## Notifications
 
