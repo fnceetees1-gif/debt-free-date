@@ -14,7 +14,7 @@ import {
   TouchableWithoutFeedback,
   Platform,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useRoute, useNavigation } from '@react-navigation/native';
 import { Debt, priorityDebt } from '../calculator';
 import {
   loadDebts,
@@ -48,6 +48,8 @@ const EMPTY_DRAFT: DebtDraft = { id: '', name: '', balance: '', apr: '', minPaym
 
 export default function DebtsScreen() {
   const { isPro, showPaywall } = usePro();
+  const route = useRoute<any>();
+  const navigation = useNavigation<any>();
   const [debts, setDebts] = useState<Debt[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [draft, setDraft] = useState<DebtDraft>(EMPTY_DRAFT);
@@ -84,6 +86,26 @@ export default function DebtsScreen() {
     setIsNew(true);
     setModalVisible(true);
   };
+
+  /**
+   * "Add my first debt" on the empty Dashboard navigates here with openAdd, and
+   * should land in the form rather than on a screen where you still have to
+   * find the + button.
+   *
+   * The param is cleared before opening, otherwise returning to this tab later
+   * pops the form open again for no reason.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      if (route.params?.openAdd) {
+        navigation.setParams({ openAdd: undefined });
+        openAdd();
+      }
+      // openAdd is recreated every render; depending on it would re-run this
+      // constantly. The param is the only thing that should trigger it.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [route.params?.openAdd])
+  );
 
   const openEdit = (d: Debt) => {
     setDraft({

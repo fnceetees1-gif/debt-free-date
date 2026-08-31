@@ -1,7 +1,7 @@
 // src/screens/DashboardScreen.tsx
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
   Debt,
   simulatePayoff,
@@ -10,8 +10,10 @@ import {
   totalMinimumPayments,
 } from '../calculator';
 import { loadDebts, loadSettings, AppSettings } from '../storage';
+import { loadPayments, summarize } from '../history';
 import ShareMilestoneCard from '../components/ShareMilestoneCard';
 import BalanceChart from '../components/BalanceChart';
+import { DashboardIcon } from '../components/TabIcons';
 import { usePro } from '../ProContext';
 import { formatMoney } from '../format';
 
@@ -25,17 +27,32 @@ function money(n: number): string {
   return formatMoney(n, { cents: false });
 }
 
+/** "38 months" reads as a number; "3 yr 2 mo" reads as a length of time. */
+function humanDuration(months: number): string {
+  if (months < 1) return 'less than a month to go';
+  if (months < 12) return `${months} month${months === 1 ? '' : 's'} to go`;
+  const years = Math.floor(months / 12);
+  const rest = months % 12;
+  if (!rest) return `${years} year${years === 1 ? '' : 's'} to go`;
+  return `${years} yr ${rest} mo to go`;
+}
+
 export default function DashboardScreen() {
   const { isPro, showPaywall } = usePro();
+  const navigation = useNavigation<any>();
   const [debts, setDebts] = useState<Debt[]>([]);
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  // Principal actually paid, for the progress bar. Only from logged payments,
+  // so it means "since you started tracking" — see the caption on the bar.
+  const [paidPrincipal, setPaidPrincipal] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    const [d, s] = await Promise.all([loadDebts(), loadSettings()]);
+    const [d, s, payments] = await Promise.all([loadDebts(), loadSettings(), loadPayments()]);
     setDebts(d);
     setSettings(s);
+    setPaidPrincipal(summarize(payments).totalPrincipal);
     setRefreshing(false);
   }, []);
 
@@ -47,12 +64,31 @@ export default function DashboardScreen() {
 
   if (!settings) return null;
 
+  // The first screen a new user sees, and it used to be two lines of grey text
+  // centred on an empty field — it read as a screen that had failed to load
+  // rather than one waiting for input. It now shows the mark, says what the app
+  // will do with a debt once it has one, and carries the button instead of
+  // telling you to go find another tab.
   if (debts.length === 0) {
     return (
       <View style={styles.emptyState}>
-        <Text style={styles.emptyTitle}>No debts tracked yet</Text>
+        <View style={styles.emptyArt}>
+          <DashboardIcon size={64} color="#7CE0A0" />
+        </View>
+        <Text style={styles.emptyTitle}>Let's find your debt-free date</Text>
         <Text style={styles.emptySubtitle}>
-          Add your first debt from the Debts tab to see your payoff timeline.
+          Add a debt — the balance, its rate, and the minimum payment. That's enough to work out
+          the month you're free and what the interest is costing you.
+        </Text>
+        <TouchableOpacity
+          style={styles.emptyCta}
+          onPress={() => navigation.navigate('Debts', { openAdd: true })}
+          accessibilityRole="button"
+        >
+          <Text style={styles.emptyCtaText}>Add my first debt</Text>
+        </TouchableOpacity>
+        <Text style={styles.emptyFootnote}>
+          Everything stays on this device. Nothing is uploaded.
         </Text>
       </View>
     );
@@ -64,11 +100,19 @@ export default function DashboardScreen() {
   if (totalDebt(debts) <= 0.01) {
     return (
       <View style={styles.emptyState}>
-        <Text style={styles.emptyTitle}>🎉 You're debt free</Text>
+        <Text style={styles.celebrate}>🎉</Text>
+        <Text style={styles.emptyTitle}>You're debt free</Text>
         <Text style={styles.emptySubtitle}>
-          Every debt you're tracking is paid off. Your payment history is on the Progress tab —
-          worth a look at what it took.
+          Every debt you're tracking is paid off.
+          {paidPrincipal > 0 ? ` You cleared ${money(paidPrincipal)} of it.` : ''}
         </Text>
+        <TouchableOpacity
+          style={styles.emptyCta}
+          onPress={() => navigation.navigate('Progress')}
+          accessibilityRole="button"
+        >
+          <Text style={styles.emptyCtaText}>See what it took</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -82,11 +126,10 @@ export default function DashboardScreen() {
       style={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
     >
-      <View style={styles.heroCard}>
-        <Text style={styles.heroLabel}>Total debt remaining</Text>
-        <Text style={styles.heroValue}>{money(totalDebt(debts))}</Text>
-      </View>
-
+      {/* The app is called Debt Free Date and the date used to sit in a small
+          box with the same weight as the minimum payment total, while the hero
+          went to the one number that gets worse the more debt you have. The
+          date is the promise; it leads. */}
       {plan.neverPaysOff ? (
         <View style={styles.warningCard}>
           <Text style={styles.warningTitle}>⚠️ These payments never clear the debt</Text>
@@ -97,18 +140,55 @@ export default function DashboardScreen() {
           </Text>
         </View>
       ) : (
-        <View style={styles.statRow}>
-          <StatBlock
-            label="Debt-free date"
-            value={plan.payoffDate.toLocaleDateString(undefined, {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric',
-            })}
-          />
-          <StatBlock label="Months left" value={String(plan.totalMonths)} />
+        <View style={styles.heroCard}>
+          <Text style={styles.heroLabel}>Debt-free date</Text>
+          <Text style={styles.heroValue}>
+            {plan.payoffDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+          </Text>
+          <Text style={styles.heroSub}>{humanDuration(plan.totalMonths)}</Text>
+
+          {/* Progress only appears once there's something to show. A 0% bar on
+              day one is discouraging, and the prompt is more useful anyway. */}
+          {paidPrincipal > 0 ? (
+            <View style={styles.progressWrap}>
+              <View style={styles.track}>
+                <View
+                  style={[
+                    styles.fill,
+                    {
+                      width: `${Math.min(
+                        (paidPrincipal / (paidPrincipal + totalDebt(debts))) * 100,
+                        100
+                      )}%`,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={styles.progressText}>
+                {money(paidPrincipal)} paid · {money(totalDebt(debts))} to go
+              </Text>
+              {/* Honest label: this only counts payments logged in the app, so
+                  it is not a lifetime figure for a debt added part-paid. */}
+              <Text style={styles.progressNote}>since you started tracking</Text>
+            </View>
+          ) : (
+            <View style={styles.progressWrap}>
+              <Text style={styles.progressText}>
+                {money(totalDebt(debts))} to go. Log a payment on the Debts tab and your progress
+                shows up here.
+              </Text>
+            </View>
+          )}
         </View>
       )}
+
+      <View style={styles.statRow}>
+        <StatBlock label="Total remaining" value={money(totalDebt(debts))} />
+        <StatBlock
+          label="Interest ahead"
+          value={plan.neverPaysOff ? '—' : money(plan.totalInterestPaid)}
+        />
+      </View>
       <View style={styles.statRow}>
         <StatBlock label="Min. payments/mo" value={money(totalMinimumPayments(debts))} />
         <StatBlock label="Extra payment/mo" value={money(settings.extraMonthlyPayment)} />
@@ -166,17 +246,54 @@ function StatBlock({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F7F8FA', padding: 16 },
-  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
-  emptyTitle: { fontSize: 18, fontWeight: '600', marginBottom: 8 },
-  emptySubtitle: { fontSize: 14, color: '#666', textAlign: 'center' },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+    backgroundColor: '#F7F8FA',
+  },
+  emptyArt: {
+    width: 116,
+    height: 116,
+    borderRadius: 58,
+    backgroundColor: '#1B1F3B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 28,
+  },
+  celebrate: { fontSize: 52, marginBottom: 16 },
+  emptyTitle: { fontSize: 22, fontWeight: '700', marginBottom: 10, textAlign: 'center' },
+  emptySubtitle: { fontSize: 14, color: '#666', textAlign: 'center', lineHeight: 21 },
+  emptyCta: {
+    backgroundColor: '#1B1F3B',
+    borderRadius: 24,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    marginTop: 26,
+  },
+  emptyCtaText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
+  emptyFootnote: { fontSize: 12, color: '#9AA0B4', marginTop: 18, textAlign: 'center' },
   heroCard: {
     backgroundColor: '#1B1F3B',
     borderRadius: 16,
     padding: 20,
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  heroLabel: { color: '#AEB3D9', fontSize: 13 },
-  heroValue: { color: '#FFFFFF', fontSize: 34, fontWeight: '700', marginTop: 4 },
+  heroLabel: {
+    color: '#AEB3D9',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  heroValue: { color: '#FFFFFF', fontSize: 34, fontWeight: '700', marginTop: 6 },
+  heroSub: { color: '#7CE0A0', fontSize: 14, fontWeight: '600', marginTop: 2 },
+  progressWrap: { marginTop: 18 },
+  track: { height: 8, borderRadius: 4, backgroundColor: '#2C3160', overflow: 'hidden' },
+  fill: { height: 8, borderRadius: 4, backgroundColor: '#7CE0A0' },
+  progressText: { color: '#C7CAEA', fontSize: 12, marginTop: 8, lineHeight: 17 },
+  progressNote: { color: '#7076A8', fontSize: 11, marginTop: 2 },
   statRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
   statBlock: {
     flex: 1,
