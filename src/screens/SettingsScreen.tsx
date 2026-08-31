@@ -9,10 +9,8 @@ import {
   ScrollView,
   Switch,
   TouchableOpacity,
-  TextInput,
   Alert,
   Linking,
-  Keyboard,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import {
@@ -23,7 +21,6 @@ import {
   FREE_DEBT_LIMIT,
 } from '../storage';
 import { clearPayments } from '../history';
-import { parseAmount } from '../format';
 import { restorePro } from '../purchases';
 import { scheduleMonthlyReminder, cancelReminders } from '../notifications';
 import { nextReminderDate, clampReminderDay } from '../reminders';
@@ -33,13 +30,13 @@ import { PRIVACY_POLICY_URL, TERMS_URL, SUPPORT_URL } from '../links';
 export default function SettingsScreen() {
   const { isPro, setPro, showPaywall } = usePro();
   const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [dayInput, setDayInput] = useState('1');
+  const [day, setDay] = useState(1);
   const [restoring, setRestoring] = useState(false);
 
   const refresh = useCallback(async () => {
     const s = await loadSettings();
     setSettings(s);
-    setDayInput(String(s.reminderDay));
+    setDay(clampReminderDay(s.reminderDay));
   }, []);
 
   useFocusEffect(
@@ -82,12 +79,12 @@ export default function SettingsScreen() {
     await persist({ ...settings, remindersEnabled: value });
   };
 
-  const commitDay = async () => {
-    const parsed = clampReminderDay(parseAmount(dayInput));
-    setDayInput(String(parsed));
-    const next = { ...settings, reminderDay: parsed };
+  const selectDay = async (picked: number) => {
+    const chosen = clampReminderDay(picked);
+    setDay(chosen);
+    const next = { ...settings, reminderDay: chosen };
     await persist(next);
-    if (next.remindersEnabled && isPro) await scheduleMonthlyReminder(parsed);
+    if (next.remindersEnabled && isPro) await scheduleMonthlyReminder(chosen);
   };
 
   const handleRestore = async () => {
@@ -175,23 +172,38 @@ export default function SettingsScreen() {
         />
       </TouchableOpacity>
 
+      {/* A tap grid rather than a number field: no keyboard, and the range is
+          visible instead of described. */}
       {settings.remindersEnabled && (
-        <View style={styles.row}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.rowLabel}>Day of month</Text>
-            <Text style={styles.rowSub}>1–28, so the date exists in February too</Text>
+        <View style={styles.dayCard}>
+          <Text style={styles.rowLabel}>Day of month</Text>
+          <View style={styles.dayGrid}>
+            {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => {
+              const selected = d === day;
+              return (
+                <TouchableOpacity
+                  key={d}
+                  style={[styles.dayCell, selected && styles.dayCellOn]}
+                  onPress={() => selectDay(d)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={`Day ${d}`}
+                >
+                  <Text style={[styles.dayCellText, selected && styles.dayCellTextOn]}>{d}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
-          <TextInput
-            style={styles.dayInput}
-            keyboardType="number-pad"
-            selectTextOnFocus
-            value={dayInput}
-            onChangeText={setDayInput}
-            onBlur={commitDay}
-            maxLength={2}
-            returnKeyType="done"
-            onSubmitEditing={Keyboard.dismiss}
-          />
+          {/* 29-31 don't exist every month. Rather than skip those months — a
+              reminder that silently vanishes in February is worse than one that
+              arrives early — it falls back to the last day the month has. */}
+          {day > 28 && (
+            <Text style={styles.rowSub}>
+              {/* Only 29, 30 and 31 reach this, so "st" vs "th" is the whole rule. */}
+              Months without a {day}
+              {day === 31 ? 'st' : 'th'} will remind you on their last day instead.
+            </Text>
+          )}
         </View>
       )}
 
@@ -202,13 +214,13 @@ export default function SettingsScreen() {
       <Text style={styles.rowCaption}>
         {settings.remindersEnabled ? 'Next reminder: ' : 'Would remind you on '}
         <Text style={styles.emphasis}>
-          {nextReminderDate(clampReminderDay(parseAmount(dayInput))).toLocaleDateString(undefined, {
+          {nextReminderDate(day).toLocaleDateString(undefined, {
             weekday: 'short',
             month: 'short',
             day: 'numeric',
           })}{' '}
           at{' '}
-          {nextReminderDate(clampReminderDay(parseAmount(dayInput))).toLocaleTimeString(undefined, {
+          {nextReminderDate(day).toLocaleTimeString(undefined, {
             hour: 'numeric',
             minute: '2-digit',
           })}
@@ -280,16 +292,20 @@ const styles = StyleSheet.create({
   },
   rowLabel: { fontSize: 15 },
   rowSub: { fontSize: 12, color: '#888', marginTop: 2 },
-  dayInput: {
-    borderWidth: 1,
-    borderColor: '#DDD',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 15,
-    minWidth: 56,
-    textAlign: 'center',
+  dayCard: { backgroundColor: '#FFF', borderRadius: 12, padding: 14, marginBottom: 8 },
+  dayGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 12 },
+  dayCell: {
+    // 7 per row inside a 14pt-padded card on the narrowest phones.
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F1F2F7',
   },
+  dayCellOn: { backgroundColor: '#1B1F3B' },
+  dayCellText: { fontSize: 14, color: '#444' },
+  dayCellTextOn: { color: '#FFF', fontWeight: '700' },
   linkRow: { backgroundColor: '#FFF', borderRadius: 12, padding: 14, marginBottom: 8 },
   linkText: { fontSize: 15, color: '#1B1F3B' },
   destructiveText: { fontSize: 15, color: '#C33', fontWeight: '600' },

@@ -428,20 +428,62 @@ check(
 );
 
 check(
-  'reminder day is clamped to a date every month actually has',
-  clampReminderDay(31) === 28 && clampReminderDay(0) === 1 && clampReminderDay(-4) === 1,
-  `${clampReminderDay(31)}, ${clampReminderDay(0)}, ${clampReminderDay(-4)}`
+  'reminder day accepts the full 1-31 range and rejects nonsense',
+  clampReminderDay(31) === 31 &&
+    clampReminderDay(32) === 31 &&
+    clampReminderDay(0) === 1 &&
+    clampReminderDay(-4) === 1,
+  `${clampReminderDay(31)}, ${clampReminderDay(32)}, ${clampReminderDay(0)}, ${clampReminderDay(-4)}`
 );
 
-// A day past 28 must never silently land in the wrong month. new Date(2026, 1,
-// 31) is 3 March, so an unclamped day would fire days late every February.
+// The picker offers 1-31, so short months need real handling. new Date(2026, 1,
+// 31) is 3 March — letting that overflow through would fire the February
+// reminder in March, days late, every year.
 check(
-  'day 31 in February resolves to the 28th, not into March',
+  'day 31 in February falls back to the 28th, not into March',
   (() => {
     const d = nextReminderDate(31, new Date(2026, 1, 1, 12, 0));
     return d.getMonth() === 1 && d.getDate() === 28;
   })(),
   nextReminderDate(31, new Date(2026, 1, 1, 12, 0)).toDateString()
+);
+
+check(
+  'February gets its 29th in a leap year',
+  (() => {
+    const d = nextReminderDate(31, new Date(2028, 1, 1, 12, 0));
+    return d.getMonth() === 1 && d.getDate() === 29;
+  })(),
+  nextReminderDate(31, new Date(2028, 1, 1, 12, 0)).toDateString()
+);
+
+check(
+  'day 31 in a 30-day month falls back to the 30th',
+  (() => {
+    const d = nextReminderDate(31, new Date(2026, 3, 1, 12, 0)); // April
+    return d.getMonth() === 3 && d.getDate() === 30;
+  })(),
+  nextReminderDate(31, new Date(2026, 3, 1, 12, 0)).toDateString()
+);
+
+check(
+  'a 31-day month still gets the 31st',
+  (() => {
+    const d = nextReminderDate(31, new Date(2026, 0, 1, 12, 0)); // January
+    return d.getMonth() === 0 && d.getDate() === 31;
+  })(),
+  nextReminderDate(31, new Date(2026, 0, 1, 12, 0)).toDateString()
+);
+
+// The fallback must not strand someone on the short month: after February's
+// 28th fires, March must go back to the 31st rather than staying clamped.
+check(
+  'the fallback does not stick — March returns to the 31st',
+  (() => {
+    const d = nextReminderDate(31, new Date(2026, 1, 28, 12, 0));
+    return d.getMonth() === 2 && d.getDate() === 31;
+  })(),
+  nextReminderDate(31, new Date(2026, 1, 28, 12, 0)).toDateString()
 );
 
 // --- This month's logged total -----------------------------------------------

@@ -8,7 +8,7 @@
 // the app still gets reminders for a year.
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
-import { REMINDER_HOUR, clampReminderDay } from './reminders';
+import { clampReminderDay, reminderDateForMonth } from './reminders';
 
 const MONTHS_AHEAD = 12;
 
@@ -76,7 +76,9 @@ export async function scheduleMonthlyReminder(dayOfMonth: number): Promise<boole
   let scheduled = 0;
 
   for (let i = 0; i < MONTHS_AHEAD; i++) {
-    const when = new Date(now.getFullYear(), now.getMonth() + i, day, REMINDER_HOUR, 0, 0, 0);
+    // Per month, not once up front: day 31 in a 30-day month must land on the
+    // 30th, and `new Date(y, 3, 31)` would silently become the 1st of May.
+    const when = reminderDateForMonth(now.getFullYear(), now.getMonth() + i, day);
     if (when.getTime() <= now.getTime()) continue; // skip this month if the day already passed
 
     try {
