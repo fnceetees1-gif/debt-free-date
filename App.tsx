@@ -1,9 +1,10 @@
 // App.tsx
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, ActivityIndicator, StyleSheet, Modal } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
-import { NavigationContainer } from '@react-navigation/native';
+import * as Notifications from 'expo-notifications';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import DashboardScreen from './src/screens/DashboardScreen';
 import DebtsScreen from './src/screens/DebtsScreen';
@@ -22,9 +23,13 @@ import {
 import { ProContext } from './src/ProContext';
 import { loadSettings, saveSettings, loadDebts } from './src/storage';
 import { initPurchases, refreshProStatus } from './src/purchases';
-import { scheduleMonthlyReminder } from './src/notifications';
+import { scheduleMonthlyReminder, REMINDER_TYPE } from './src/notifications';
 
 const Tab = createBottomTabNavigator();
+
+// Needed to navigate from outside the tree — the notification tap handler lives
+// above NavigationContainer and has no useNavigation to reach for.
+const navigationRef = createNavigationContainerRef<any>();
 
 // Hold the native splash until startup has actually finished. Without this it
 // hides the moment JS mounts, so you get splash -> blank -> spinner -> app.
@@ -73,6 +78,38 @@ export default function App() {
         SplashScreen.hideAsync().catch(() => {});
       }
     })();
+  }, []);
+
+  /**
+   * Tapping the monthly reminder opens the Debts tab.
+   *
+   * The reminder's whole message is "log this month's payments", and it used to
+   * drop you wherever you happened to have left the app — often not the screen
+   * that does the logging. A reminder that doesn't take you to the thing it's
+   * reminding you about is asking you to do its last step by hand.
+   *
+   * Handles both cases: the app already running, and the app launched cold by
+   * the tap. On a cold start the navigator does not exist yet when the response
+   * arrives, so the intent is parked and replayed from onReady below.
+   */
+  const pendingReminderNav = useRef(false);
+
+  useEffect(() => {
+    const handle = (response: Notifications.NotificationResponse | null) => {
+      const data = response?.notification?.request?.content?.data;
+      if (data?.type !== REMINDER_TYPE) return;
+      if (navigationRef.isReady()) navigationRef.navigate('Debts');
+      else pendingReminderNav.current = true;
+    };
+
+    // Cold start: the app was launched by the tap, so the response already
+    // happened and there was no listener to catch it.
+    Notifications.getLastNotificationResponseAsync()
+      .then(handle)
+      .catch((err) => console.warn('[app] could not read launch notification:', err));
+
+    const sub = Notifications.addNotificationResponseReceivedListener(handle);
+    return () => sub.remove();
   }, []);
 
   const setPro = useCallback(async (value: boolean) => {
@@ -125,7 +162,16 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ProContext.Provider value={{ isPro, setPro, showPaywall }}>
-        <NavigationContainer>
+        <NavigationContainer
+          ref={navigationRef}
+          onReady={() => {
+            // Replays a reminder tap that arrived before the navigator existed.
+            if (pendingReminderNav.current) {
+              pendingReminderNav.current = false;
+              navigationRef.navigate('Debts');
+            }
+          }}
+        >
           {/* Every tab needs its own tabBarIcon. With none, React Navigation
               substitutes MissingIcon, which is the character "⏷" — iOS has a
               glyph for it, Android mostly doesn't, so all five tabs drew a tofu

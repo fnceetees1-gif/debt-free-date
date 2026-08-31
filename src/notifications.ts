@@ -12,6 +12,9 @@ import { clampReminderDay, reminderDateForMonth } from './reminders';
 
 const MONTHS_AHEAD = 12;
 
+/** Marks a notification as the monthly payment reminder. See App.tsx. */
+export const REMINDER_TYPE = 'payment-reminder';
+
 // The date arithmetic lives in reminders.ts so it can be unit tested without
 // pulling in expo-notifications. Re-exported so callers have one import.
 export { REMINDER_HOUR, clampReminderDay, nextReminderDate } from './reminders';
@@ -86,6 +89,10 @@ export async function scheduleMonthlyReminder(dayOfMonth: number): Promise<boole
         content: {
           title: 'Debt payments due',
           body: "Log this month's payments to keep your debt-free date accurate.",
+          // Tagged so the tap handler in App.tsx can tell this apart from any
+          // other notification the app might send later. Routing on "we got a
+          // notification" would send people to the Debts tab for anything.
+          data: { type: REMINDER_TYPE },
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
