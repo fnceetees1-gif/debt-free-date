@@ -82,7 +82,7 @@ to use the app after a change means you accept the updated terms.
 
 ## Governing law
 
-These terms are governed by the laws of the State of Texas, United States,
+These terms are governed by the laws of the State of Montana, United States,
 without regard to conflict of law rules.
 
 ## Contact

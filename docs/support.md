@@ -4,7 +4,7 @@ title: Support — Debt Free Date
 
 # Debt Free Date — Support
 
-Email **thomiandesigns@aol.com** and I'll get back to you.
+Email **support@onyxoneapps.com** and I'll get back to you.
 
 ## Common questions
 
