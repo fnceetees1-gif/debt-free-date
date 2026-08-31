@@ -35,7 +35,8 @@
         "ascApiKeyIssuerId": "1ba07191-87dc-4602-a02d-b188438a1331"
       },
       "android": {
-        "track": "internal"
+        "track": "internal",
+        "serviceAccountKeyPath": "../../Downloads/onyx-one-play-18d8b9464ba2.json"
       }
     }
   }
