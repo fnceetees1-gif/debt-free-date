@@ -45,7 +45,15 @@ export async function openLink(url: string): Promise<void> {
       // Match the app's chrome so the sheet doesn't arrive as a white slab.
       toolbarColor: '#1B1F3B',
       controlsColor: '#7CE0A0',
-      enableBarCollapsing: true,
+      // The toolbar holds the ONLY way back to the app. Bar collapsing hides it
+      // as soon as you scroll — and these are long legal pages, so scrolling is
+      // the first thing anyone does. That left no visible way out. Never
+      // collapse a bar that carries the exit.
+      enableBarCollapsing: false,
+      showTitle: true,
+      // iOS: an explicit "Close" rather than the default "Done", which reads as
+      // completing something on a page you were only reading.
+      dismissButtonStyle: 'close',
     });
   } catch (err) {
     console.warn('[links] in-app browser failed, falling back:', err);
