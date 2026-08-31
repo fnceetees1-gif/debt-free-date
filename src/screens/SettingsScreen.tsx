@@ -13,6 +13,7 @@ import {
   Linking,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import * as Application from 'expo-application';
 import {
   loadSettings,
   saveSettings,
@@ -252,6 +253,16 @@ export default function SettingsScreen() {
         <Text style={styles.linkText}>Support</Text>
       </TouchableOpacity>
 
+      {/* Every internal build since 1.0.2 reported the same version name, so
+          there was no way to tell from inside the app which one was installed —
+          "did the update land?" became guesswork more than once. These come
+          from expo-application, so they are the values actually baked into the
+          installed binary rather than anything read back out of app.json. */}
+      <Text style={styles.version}>
+        Version {Application.nativeApplicationVersion ?? '—'} (build{' '}
+        {Application.nativeBuildVersion ?? '—'})
+      </Text>
+
       <Text style={styles.disclaimer}>
         Debt Free Date is a calculator. Its projections assume the payment amounts you enter and
         do not account for fees, rate changes, or promotional periods. It is not financial advice.
@@ -311,6 +322,7 @@ const styles = StyleSheet.create({
   destructiveText: { fontSize: 15, color: '#C33', fontWeight: '600' },
   rowCaption: { fontSize: 12, color: '#888', marginTop: 6, lineHeight: 17 },
   emphasis: { color: '#1B1F3B', fontWeight: '600' },
+  version: { fontSize: 12, color: '#9AA0B4', textAlign: 'center', marginTop: 20 },
   disclaimer: {
     fontSize: 11,
     color: '#999',
