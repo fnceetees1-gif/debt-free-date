@@ -1,0 +1,17 @@
+# GitHub Pages config for the legal pages published from docs/.
+#
+# These pages are RETIRED. Their content now lives on onyxoneapps.com, which
+# covers both Onyx One apps rather than this one. Each page here redirects to
+# its replacement via `redirect_to` in its front matter.
+#
+# The URLs are deliberately kept alive rather than deleted. Debt Free Date
+# 1.0.2 and earlier have these exact URLs compiled into the app — see
+# src/links.ts — and every copy already installed will keep requesting them for
+# as long as it stays installed. Deleting these pages would turn the in-app
+# Privacy, Support and Terms links into 404s for those users, including the
+# Terms of Use link Apple requires on the purchase screen.
+#
+# jekyll-redirect-from is on GitHub Pages' supported-plugins list, so listing it
+# here is enough; no Gemfile is needed.
+plugins:
+  - jekyll-redirect-from

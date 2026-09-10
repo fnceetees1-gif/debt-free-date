@@ -1,5 +1,10 @@
 ---
 title: Terms of Use — Debt Free Date
+# Retired. The body below is kept as the source of record; what is published
+# at this URL is now a redirect to onyxoneapps.com, which covers both Onyx
+# One apps. The URL itself must stay alive because shipped copies of the app
+# request it - see docs/_config.yml.
+redirect_to: https://onyxoneapps.com/terms.html
 ---
 
 # Terms of Use
