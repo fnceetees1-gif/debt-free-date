@@ -2,9 +2,7 @@
 //
 // App Store Connect requires a reachable Privacy Policy URL and a Support URL,
 // and any app with an IAP must link Terms of Use from the purchase screen.
-// Apple loads these during review, so they must be live HTTPS pages — but no
-// domain purchase is needed. GitHub Pages works: publish the `docs/` folder and
-// the URLs become https://<user>.github.io/<repo>/privacy etc.
+// Apple loads these during review, so they must be live HTTPS pages.
 //
 // TERMS_URL used to point at Apple's Standard EULA, which applies by default
 // when a developer supplies no terms of their own. That was fine while this was
@@ -15,13 +13,24 @@
 // It now points at our own page. Apple's required minimum terms live in a
 // section of that page, so the App Store requirement is still met, and there is
 // a matching section for Google Play.
+//
+// These were on GitHub Pages (`fnceetees1-gif.github.io/debt-free-date/...`,
+// served from this repo's `docs/`) until September 2026. They now point at
+// onyxoneapps.com, which is Onyx One LLC's own domain and already serves the
+// store listings' privacy and support URLs — one set of legal pages covering
+// both apps instead of a per-repo copy.
+//
+// The `docs/` folder is deliberately still published and MUST redirect rather
+// than 404: every copy of 1.0.2 and earlier already installed has the old URLs
+// compiled in, and those builds will keep requesting them forever. A user on an
+// old version tapping "Privacy" must not get a dead page.
 
 import * as WebBrowser from 'expo-web-browser';
 import { Linking } from 'react-native';
 
-export const PRIVACY_POLICY_URL = 'https://fnceetees1-gif.github.io/debt-free-date/privacy';
-export const SUPPORT_URL = 'https://fnceetees1-gif.github.io/debt-free-date/support';
-export const TERMS_URL = 'https://fnceetees1-gif.github.io/debt-free-date/terms';
+export const PRIVACY_POLICY_URL = 'https://onyxoneapps.com/privacy.html';
+export const SUPPORT_URL = 'https://onyxoneapps.com/support.html';
+export const TERMS_URL = 'https://onyxoneapps.com/terms.html';
 
 /**
  * Opens a link in an in-app browser rather than handing it to the system one.
