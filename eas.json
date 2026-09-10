@@ -30,13 +30,13 @@
       "ios": {
         "ascAppId": "6798039442",
         "appleTeamId": "3HYY6SBKZF",
-        "ascApiKeyPath": "../../Downloads/AuthKey_6BZDDCL4V7.p8",
+        "ascApiKeyPath": "../_private/credentials/AuthKey_6BZDDCL4V7.p8",
         "ascApiKeyId": "6BZDDCL4V7",
         "ascApiKeyIssuerId": "1ba07191-87dc-4602-a02d-b188438a1331"
       },
       "android": {
         "track": "internal",
-        "serviceAccountKeyPath": "../../Downloads/onyx-one-play-18d8b9464ba2.json"
+        "serviceAccountKeyPath": "../_private/credentials/onyx-one-play-18d8b9464ba2.json"
       }
     }
   }
