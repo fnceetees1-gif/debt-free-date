@@ -75,7 +75,14 @@ export default function DebtsScreen() {
 
   const sheetStyle = [
     styles.modalCard,
-    { paddingBottom: 20 + (keypadUp ? 0 : insets.bottom) },
+    {
+      paddingBottom: 20 + (keypadUp ? 0 : insets.bottom),
+      // The sheet spans the full width, so it meets whatever insets the sides
+      // carry. These are not necessarily equal — a vertical toolbar or camera
+      // insets one edge only — so each side is reserved on its own.
+      paddingLeft: styles.modalCard.padding + insets.left,
+      paddingRight: styles.modalCard.padding + insets.right,
+    },
   ];
   const [debts, setDebts] = useState<Debt[]>([]);
   const [modalVisible, setModalVisible] = useState(false);

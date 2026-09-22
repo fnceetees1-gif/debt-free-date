@@ -62,6 +62,15 @@ export default function WelcomeScreen({ onDone }: { onDone: () => void }) {
 
   const isLast = page === PANELS.length - 1;
 
+  // Safe areas are asymmetric — a vertical toolbar or camera insets one side
+  // and not the other — so the two sides are padded independently rather than
+  // with a single paddingHorizontal. The insets are added inside the panel's
+  // fixed `width`, which the paging maths depends on staying the full display.
+  const sides = (base: number) => ({
+    paddingLeft: base + insets.left,
+    paddingRight: base + insets.right,
+  });
+
   const goTo = (i: number) => {
     const clamped = Math.min(Math.max(i, 0), PANELS.length - 1);
     scroller.current?.scrollTo({ x: clamped * width, animated: true });
@@ -76,7 +85,7 @@ export default function WelcomeScreen({ onDone }: { onDone: () => void }) {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      <View style={styles.skipRow}>
+      <View style={[styles.skipRow, sides(styles.skipRow.paddingHorizontal)]}>
         <TouchableOpacity
           onPress={onDone}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
@@ -95,7 +104,7 @@ export default function WelcomeScreen({ onDone }: { onDone: () => void }) {
         style={styles.pager}
       >
         {PANELS.map((p) => (
-          <View key={p.key} style={[styles.panel, { width }]}>
+          <View key={p.key} style={[styles.panel, { width }, sides(styles.panel.paddingHorizontal)]}>
             <View style={styles.art}>{p.art(72, ACCENT)}</View>
             <Text style={styles.title}>{p.title}</Text>
             <Text style={styles.body}>{p.body}</Text>
@@ -109,7 +118,7 @@ export default function WelcomeScreen({ onDone }: { onDone: () => void }) {
         ))}
       </View>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, sides(styles.footer.paddingHorizontal)]}>
         <TouchableOpacity
           style={styles.cta}
           onPress={() => (isLast ? onDone() : goTo(page + 1))}

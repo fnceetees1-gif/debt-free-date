@@ -89,12 +89,22 @@ export default function PaywallScreen({ onUnlocked, onClose, reason }: Props) {
       style={styles.container}
       contentContainerStyle={[
         styles.content,
-        { paddingTop: styles.content.paddingTop + insets.top, paddingBottom: 40 + insets.bottom },
+        {
+          paddingTop: styles.content.paddingTop + insets.top,
+          paddingBottom: 40 + insets.bottom,
+          // Left and right are inset independently: on a folded or landscape
+          // display only one side carries a toolbar or camera.
+          paddingLeft: styles.content.padding + insets.left,
+          paddingRight: styles.content.padding + insets.right,
+        },
       ]}
     >
       {onClose && (
         <TouchableOpacity
-          style={[styles.closeBtn, { top: 16 + insets.top }]}
+          style={[
+            styles.closeBtn,
+            { top: 16 + insets.top, right: styles.closeBtn.right + insets.right },
+          ]}
           onPress={onClose}
           accessibilityLabel="Close"
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
