@@ -112,7 +112,9 @@ export default function WelcomeScreen({ onDone }: { onDone: () => void }) {
         ))}
       </ScrollView>
 
-      <View style={styles.dots}>
+      {/* No base padding of its own — the insets alone re-centre the dots on
+          the usable width rather than the full display. */}
+      <View style={[styles.dots, sides(0)]}>
         {PANELS.map((p, i) => (
           <View key={p.key} style={[styles.dot, i === page && styles.dotActive]} />
         ))}
