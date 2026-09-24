@@ -25,6 +25,10 @@ android/
 OUTREACH_DRAFTS.md
 OUTREACH_NATIONAL.md
 OUTREACH_TRACKER.md
+# Catch-all, so a new outreach file can never be committed by being named
+# something the list above does not anticipate.
+OUTREACH_*.md
+outreach_tracker.csv
 EMAIL_TEST.md
 ANDROID_RELEASE.md
 BUSINESS_IDS.md
