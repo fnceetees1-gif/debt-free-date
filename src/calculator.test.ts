@@ -530,6 +530,43 @@ check(
   `${paidInMonth(spanning, new Date(2025, 8, 15))}`
 );
 
+// --- Minimums owed, once debts start clearing -------------------------------
+// The Dashboard showed $1,800/mo of minimums against $1,910 of remaining debt,
+// because a cleared debt kept contributing its minimum. Nothing caught it: the
+// sample above is entirely active debts, so the cleared-debt case never ran.
+// These pin the behaviour against a list that has one.
+
+const clearedSet: Debt[] = [
+  { id: 'paid', name: 'Cleared card', balance: 0, apr: 0.22, minPayment: 1700 },
+  { id: 'live', name: 'Still owing', balance: 1910, apr: 0.18, minPayment: 100 },
+];
+
+check(
+  'a cleared debt owes no minimum',
+  totalMinimumPayments(clearedSet) === 100,
+  `${totalMinimumPayments(clearedSet)} (expected 100, not 1800)`
+);
+
+check(
+  'an all-active list is unchanged by the filter',
+  totalMinimumPayments(sampleDebts) === 60 + 140 + 40 + 220,
+  `${totalMinimumPayments(sampleDebts)} (expected 460)`
+);
+
+check(
+  'every debt cleared means nothing owed',
+  totalMinimumPayments([{ id: 'x', name: 'x', balance: 0, apr: 0.1, minPayment: 500 }]) === 0,
+  `${totalMinimumPayments([{ id: 'x', name: 'x', balance: 0, apr: 0.1, minPayment: 500 }])}`
+);
+
+// A residue below the 0.01 threshold the rest of the engine treats as paid off
+// must be treated as paid off here too, or the two disagree again.
+check(
+  'a sub-cent residue counts as cleared, matching the engine',
+  totalMinimumPayments([{ id: 'r', name: 'r', balance: 0.004, apr: 0.1, minPayment: 75 }]) === 0,
+  `${totalMinimumPayments([{ id: 'r', name: 'r', balance: 0.004, apr: 0.1, minPayment: 75 }])}`
+);
+
 if (failures > 0) {
   console.log('\n' + failures + ' assertion(s) FAILED');
   process.exit(1);

@@ -212,8 +212,21 @@ export function compareStrategies(
   };
 }
 
+/**
+ * What the user still has to pay every month. Cleared debts are excluded,
+ * because a debt with no balance owes no minimum.
+ *
+ * The filter lives here rather than at the call sites. It used to be absent,
+ * and the two callers disagreed: ProgressScreen filtered to active debts before
+ * calling, the Dashboard passed every debt. So the Dashboard went on charging
+ * the user for debts they had already paid off — a $1,700 minimum on a cleared
+ * card kept inflating "Min. payments/mo" forever, and the same screen showed
+ * $1,800/mo of minimums against $1,910 of remaining debt while Progress, on the
+ * same data, correctly said $100. Everything else in this file already filters
+ * on `balance > 0.01`; this was the one place that didn't.
+ */
 export function totalMinimumPayments(debts: Debt[]): number {
-  return debts.reduce((sum, d) => sum + d.minPayment, 0);
+  return debts.filter((d) => d.balance > 0.01).reduce((sum, d) => sum + d.minPayment, 0);
 }
 
 export function totalDebt(debts: Debt[]): number {
