@@ -36,3 +36,10 @@ BUSINESS_IDS.md
 # OS
 .DS_Store
 Thumbs.db
+
+# ASO research and baseline. This repo is PUBLIC and these hold App Store
+# Connect analytics — impressions, downloads, revenue — plus the keyword
+# strategy. The screenshots in store-assets/ are fine (they are on the store
+# already); the numbers are not.
+store-assets/ASO_*.md
+store-assets/aso-*.json
